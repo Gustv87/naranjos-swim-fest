@@ -7,13 +7,16 @@ import { Badge } from '@/components/ui/badge';
 import { MapPin, Calendar, Users, Trophy, Shield, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import heroImage from '@/assets/lago-yojoa-hero.jpg';
+import { useRegistrations } from '@/context/registration-context';
+import Inscripcion from './Inscripcion';
 
 const Index = () => {
-  // Event data - these would come from Firebase in real implementation
+  // Event data - these would come from Firebase en producción
   const eventDate = new Date('2025-10-12T07:00:00-06:00'); // Honduras timezone
-  const currentParticipants = 23;
-  const maxParticipants = 70;
+  const { stats, isLoading: isRegistrationsLoading } = useRegistrations();
   const isRegistrationOpen = new Date() < new Date('2025-10-04T23:59:59-06:00');
+  const isCapacityFull = stats.capacityFull;
+  const isHeroCtaDisabled = !isRegistrationOpen || isCapacityFull || isRegistrationsLoading;
 
   const distances = [
     {
@@ -53,6 +56,11 @@ const Index = () => {
       icon: <Trophy className="h-6 w-6" />,
       title: 'Premiación',
       description: 'Primeros 3 lugares por categoría'
+    },
+    {
+      icon: <Users className="h-6 w-6" />,
+      title: 'Inscripción',
+      description: 'Costo: L 300. Deposita en BAC Honduras 743657881 a nombre de CARLOS RENE CERRATO OSORIO.'
     }
   ];
 
@@ -88,9 +96,9 @@ const Index = () => {
                 <Button 
                   size="lg" 
                   className="button-gradient shadow-button text-lg px-8 py-6 disabled:opacity-50"
-                  disabled={!isRegistrationOpen || currentParticipants >= maxParticipants}
+                  disabled={isHeroCtaDisabled}
                 >
-                  {currentParticipants >= maxParticipants ? 'Cupo Agotado' : 'Inscribirme Ahora'}
+                  {isCapacityFull ? 'Cupo Agotado' : isRegistrationsLoading ? 'Cargando cupos...' : 'Inscribirme Ahora'}
                 </Button>
               </Link>
               <Link to="/reglamento">
@@ -113,7 +121,7 @@ const Index = () => {
 
             {/* Capacity Indicator */}
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 max-w-md mx-auto">
-              <CapacityIndicator current={currentParticipants} max={maxParticipants} />
+              <CapacityIndicator current={stats.total} max={stats.max} />
             </div>
           </div>
         </div>
@@ -122,7 +130,7 @@ const Index = () => {
       {/* Highlights */}
       <section className="py-16 px-4">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
             {highlights.map((item, index) => (
               <Card key={index} className="card-gradient shadow-card hover:shadow-button transition-smooth">
                 <CardHeader className="text-center">
@@ -189,7 +197,8 @@ const Index = () => {
                 <p>
                   <strong>Fecha:</strong> 12 de octubre de 2025<br />
                   <strong>Lugar:</strong> Lago de Yojoa, Los Naranjos<br />
-                  <strong>Cupo:</strong> 70 participantes<br />
+                  <strong>Cupo:</strong> 100 participantes<br />
+                  <strong>Costo de Inscripcion:</strong> Lps. 300.00<br />
                   <strong>Entrega de kit:</strong> 11 de octubre en Villa Santa Martha
                 </p>
                 <p>
@@ -200,7 +209,7 @@ const Index = () => {
               </div>
               <div className="mt-8">
                 <a 
-                  href="https://maps.google.com/search/Lago+de+Yojoa+Los+Naranjos" 
+                  href="https://maps.app.goo.gl/qn5WW8wEpZQ9J7Jx6" 
                   target="_blank" 
                   rel="noopener noreferrer"
                 >
@@ -270,9 +279,9 @@ const Index = () => {
             <Link to="/inscripcion">
               <Button 
                 variant="secondary" 
-                disabled={!isRegistrationOpen || currentParticipants >= maxParticipants}
+                disabled={!isRegistrationOpen || isCapacityFull}
               >
-                {currentParticipants >= maxParticipants ? 'Cupo Agotado' : 'Inscribirme'}
+                {isCapacityFull ? 'Cupo Agotado' : 'Inscribirme'}
               </Button>
             </Link>
           </div>

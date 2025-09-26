@@ -48,10 +48,10 @@ export function Countdown({ targetDate, className = '' }: CountdownProps) {
   ];
 
   return (
-    <div className={`flex gap-2 sm:gap-4 ${className}`}>
-      {timeUnits.map((unit, index) => (
+    <div className={`flex justify-center gap-2 sm:gap-4 ${className}`}>
+      {timeUnits.map((unit) => (
         <div key={unit.label} className="flex flex-col items-center">
-          <div className="bg-card rounded-lg p-2 sm:p-4 shadow-card min-w-[60px] sm:min-w-[80px]">
+          <div className="bg-card rounded-lg p-2 sm:p-4 shadow-card min-w-[60px] sm:min-w-[80px] text-center">
             <span className="block text-2xl sm:text-3xl font-bold text-primary tabular-nums">
               {unit.value.toString().padStart(2, '0')}
             </span>

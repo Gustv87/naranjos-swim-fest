@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Download, Clock, Users, Shield, Trophy, MapPin, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import reglamentoPdf from '@/assets/Reglamento Open Water Los Naranjos.pdf';
 
 const Reglamento = () => {
   const rules = [
@@ -15,7 +16,7 @@ const Reglamento = () => {
     {
       icon: <Users className="h-6 w-6" />,
       title: 'Límite de Participantes',
-      description: 'Máximo 70 participantes. Las inscripciones se cerrarán al completar el cupo o el 4 de octubre de 2025.'
+      description: 'Máximo 100 participantes. Las inscripciones se cerrarán al completar el cupo o el 4 de octubre de 2025.'
     },
     {
       icon: <Shield className="h-6 w-6" />,
@@ -48,7 +49,7 @@ const Reglamento = () => {
     'Gorro de natación (obligatorio, incluido en el kit)',
     'Chip de cronometraje (incluido en el kit)',
     'Dorsal (incluido en el kit)',
-    'Neopreno (opcional, permitido)',
+    'Traje de baño adecuado',
     'Gafas de natación (recomendadas)'
   ];
 
@@ -87,9 +88,11 @@ const Reglamento = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center">
-            <Button size="lg" className="button-gradient shadow-button">
-              <Download className="mr-2 h-5 w-5" />
-              Descargar PDF Completo
+            <Button size="lg" className="button-gradient shadow-button" asChild>
+              <a href={reglamentoPdf} download target="_blank" rel="noopener noreferrer">
+                <Download className="mr-2 h-5 w-5" />
+                Descargar PDF Completo
+              </a>
             </Button>
           </CardContent>
         </Card>
@@ -132,7 +135,7 @@ const Reglamento = () => {
               
               <h4 className="font-semibold text-primary mb-2">Cupo</h4>
               <p className="text-muted-foreground">
-                Máximo 70 participantes
+                Máximo 100 participantes
               </p>
             </div>
           </CardContent>

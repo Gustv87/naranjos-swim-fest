@@ -1,5 +1,6 @@
 import { Navigation } from '@/components/layout/navigation';
 import { Button } from '@/components/ui/button';
+import { FirebaseError } from 'firebase/app';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -7,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CapacityIndicator } from '@/components/ui/capacity-indicator';
+import { useRegistrations } from '@/context/registration-context';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Upload, CheckCircle2, AlertCircle } from 'lucide-react';
@@ -14,14 +16,15 @@ import { Link } from 'react-router-dom';
 
 const Inscripcion = () => {
   const { toast } = useToast();
+  const { addRegistration, stats, isLoading: isRegistrationsLoading } = useRegistrations();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [acceptedRules, setAcceptedRules] = useState(false);
-  
-  // Mock data - would come from Firebase
-  const currentParticipants = 23;
-  const maxParticipants = 70;
+
+  const currentParticipants = stats.total;
+  const maxParticipants = stats.max;
   const isRegistrationOpen = new Date() < new Date('2025-10-04T23:59:59-06:00');
-  const isCapacityFull = currentParticipants >= maxParticipants;
+  const isCapacityFull = stats.capacityFull;
+  const isCapacityDataLoading = isRegistrationsLoading;
 
   const [formData, setFormData] = useState({
     nombre: '',
@@ -43,13 +46,7 @@ const Inscripcion = () => {
 
   const bancos = [
     'BAC Honduras',
-    'Banco Atlántida',
-    'Banco de Occidente',
-    'Banco del País',
-    'Banpais',
-    'FICOHSA',
-    'Tigo Money',
-    'Otro'
+    
   ];
 
   const calculateCategory = (birthDate: string, distance: string): string => {
@@ -92,6 +89,23 @@ const Inscripcion = () => {
       return;
     }
 
+    if (!navigator.onLine) {
+      toast({
+        variant: "destructive",
+        title: "Sin conexión",
+        description: "Verifica tu conexión a internet antes de continuar.",
+      });
+      return;
+    }
+
+    if (isCapacityDataLoading) {
+      toast({
+        title: "Cargando información",
+        description: "Espera a que se actualice la disponibilidad de cupos antes de continuar.",
+      });
+      return;
+    }
+
     if (isCapacityFull) {
       toast({
         variant: "destructive",
@@ -102,17 +116,43 @@ const Inscripcion = () => {
     }
 
     setIsSubmitting(true);
-    
+
     try {
-      // Here would be the Firebase logic
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
-      
-      toast({
-        title: "¡Inscripción exitosa!",
-        description: "Tu dorsal es el #024. Te hemos enviado un email con los detalles.",
+      const categoria = calculateCategory(formData.nacimiento, formData.distancia);
+
+      if (!categoria) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "No pudimos determinar tu categoría. Verifica tu fecha de nacimiento y distancia.",
+        });
+        return;
+      }
+
+      const registration = await addRegistration({
+        nombre: formData.nombre.trim(),
+        dni: formData.dni.trim(),
+        nacimiento: formData.nacimiento,
+        email: formData.email.trim(),
+        telefono: formData.telefono.trim(),
+        club: formData.club.trim(),
+        distancia: formData.distancia,
+        sexo: formData.sexo,
+        categoria,
+        emergenciaNombre: formData.emergenciaNombre.trim(),
+        emergenciaTel: formData.emergenciaTel.trim(),
+        medico: formData.medico.trim(),
+        banco: formData.banco,
+        monto: formData.monto.trim(),
+        referencia: formData.referencia.trim(),
+        comprobanteFile: formData.comprobante,
       });
-      
-      // Reset form
+
+      toast({
+        title: "¡Inscripción registrada!",
+        description: `Tu dorsal provisional es el #${registration.dorsal}. Te contactaremos para validar tu pago.`,
+      });
+
       setFormData({
         nombre: '',
         dni: '',
@@ -131,12 +171,27 @@ const Inscripcion = () => {
         comprobante: null
       });
       setAcceptedRules(false);
-      
     } catch (error) {
+      let description = 'No se pudo procesar tu inscripción. Intenta nuevamente.';
+
+      if (error instanceof FirebaseError) {
+        if (error.code.includes('network') || error.code === 'unavailable') {
+          description = 'No pudimos conectar con el servidor. Verifica tu conexión a internet e intenta nuevamente.';
+        } else if (error.code === 'storage/unauthorized') {
+          description = 'No tienes permisos para subir el comprobante. Contacta al administrador.';
+        } else {
+          description = error.message;
+        }
+      } else if (error instanceof Error) {
+        description = error.message === 'No hay cupos disponibles'
+          ? 'Ya no hay cupos disponibles para este evento.'
+          : error.message;
+      }
+
       toast({
         variant: "destructive",
         title: "Error",
-        description: "No se pudo procesar tu inscripción. Intenta nuevamente.",
+        description,
       });
     } finally {
       setIsSubmitting(false);
@@ -427,7 +482,7 @@ const Inscripcion = () => {
                     value={formData.monto}
                     onChange={(e) => setFormData(prev => ({ ...prev, monto: e.target.value }))}
                     required
-                    placeholder="500.00"
+                    placeholder="300.00"
                   />
                 </div>
                 
