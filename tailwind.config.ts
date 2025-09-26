@@ -47,6 +47,16 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        
+        // Custom lake theme colors
+        lake: {
+          blue: "hsl(var(--lake-blue))",
+          green: "hsl(var(--lake-green))",
+          light: "hsl(var(--lake-light))",
+        },
+        warm: {
+          accent: "hsl(var(--warm-accent))",
+        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
