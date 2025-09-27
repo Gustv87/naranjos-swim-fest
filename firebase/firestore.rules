@@ -6,7 +6,7 @@ service cloud.firestore {
         return data.keys().hasOnly([
           'nombre', 'dni', 'nacimiento', 'email', 'telefono', 'club', 'distancia', 'sexo',
           'categoria', 'emergenciaNombre', 'emergenciaTel', 'medico', 'banco', 'monto',
-          'referencia', 'comprobanteNombre', 'comprobanteUrl', 'comprobantePath',
+          'referencia', 'tallaCamisa', 'comprobanteNombre', 'comprobanteUrl', 'comprobantePath',
           'dorsal', 'status', 'createdAt', 'checkedInAt', 'checkedInBy'
         ]);
       }

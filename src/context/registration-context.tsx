@@ -31,6 +31,7 @@ export type RegistrationInput = {
   banco: string;
   monto: string;
   referencia: string;
+  tallaCamisa: string;
   comprobanteFile?: File | null;
 };
 
@@ -54,6 +55,7 @@ export type Registration = {
   banco: string;
   monto: string;
   referencia: string;
+  tallaCamisa: string;
   comprobanteNombre: string | null;
   comprobanteUrl: string | null;
   comprobantePath: string | null;
@@ -119,6 +121,7 @@ const toRegistration = (id: string, data: Record<string, unknown>): Registration
     banco: String(data.banco ?? ''),
     monto: String(data.monto ?? ''),
     referencia: String(data.referencia ?? ''),
+    tallaCamisa: String(data.tallaCamisa ?? ''),
     comprobanteNombre: data.comprobanteNombre ? String(data.comprobanteNombre) : null,
     comprobanteUrl: data.comprobanteUrl ? String(data.comprobanteUrl) : null,
     comprobantePath: data.comprobantePath ? String(data.comprobantePath) : null,
@@ -223,6 +226,7 @@ export const RegistrationProvider = ({ children }: PropsWithChildren) => {
         banco: data.banco,
         monto: data.monto,
         referencia: data.referencia,
+        tallaCamisa: data.tallaCamisa,
         comprobanteNombre,
         comprobanteUrl,
         comprobantePath,

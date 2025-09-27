@@ -193,7 +193,7 @@ const filteredParticipants = useMemo(() => {
   const handleView = (participant: Registration) => {
     toast({
       title: participant.nombre,
-      description: `DNI: ${participant.dni} | Email: ${participant.email} | Tel: ${participant.telefono || 'No indicado'} | Comprobante: ${participant.comprobanteNombre ?? 'No adjuntado'}`
+      description: `DNI: ${participant.dni} | Email: ${participant.email} | Tel: ${participant.telefono || 'No indicado'} | Talla: ${participant.tallaCamisa || 'No indicada'} | Comprobante: ${participant.comprobanteNombre ?? 'No adjuntado'}`
     });
   };
 
@@ -247,6 +247,7 @@ const filteredParticipants = useMemo(() => {
       'Teléfono',
       'Distancia',
       'Categoría',
+      'Talla',
       'Banco',
       'Monto',
       'Referencia',
@@ -264,6 +265,7 @@ const filteredParticipants = useMemo(() => {
       participant.telefono,
       participant.distancia,
       participant.categoria,
+      participant.tallaCamisa,
       participant.banco,
       participant.monto,
       participant.referencia,
@@ -545,6 +547,7 @@ const filteredParticipants = useMemo(() => {
                     <th className="text-left py-3 px-2">DNI</th>
                     <th className="text-left py-3 px-2">Distancia</th>
                     <th className="text-left py-3 px-2">Categoría</th>
+                    <th className="text-left py-3 px-2">Talla</th>
                     <th className="text-left py-3 px-2">Banco</th>
                     <th className="text-left py-3 px-2">Monto</th>
                     <th className="text-left py-3 px-2">Referencia</th>
@@ -556,19 +559,19 @@ const filteredParticipants = useMemo(() => {
                 <tbody>
                   {registrationsLoading ? (
                     <tr>
-                      <td className="py-6 text-center text-muted-foreground" colSpan={11}>
+                      <td className="py-6 text-center text-muted-foreground" colSpan={13}>
                         Cargando inscripciones...
                       </td>
                     </tr>
                   ) : error ? (
                     <tr>
-                      <td className="py-6 text-center text-destructive" colSpan={11}>
+                      <td className="py-6 text-center text-destructive" colSpan={13}>
                         {error}
                       </td>
                     </tr>
                   ) : filteredParticipants.length === 0 ? (
                     <tr>
-                      <td className="py-6 text-center text-muted-foreground" colSpan={11}>
+                      <td className="py-6 text-center text-muted-foreground" colSpan={13}>
                         No hay inscripciones que coincidan con los filtros seleccionados.
                       </td>
                     </tr>
@@ -581,6 +584,7 @@ const filteredParticipants = useMemo(() => {
                         <td className="py-3 px-2 font-mono text-sm">{participant.dni}</td>
                         <td className="py-3 px-2">{participant.distancia}</td>
                         <td className="py-3 px-2">{participant.categoria || 'N/A'}</td>
+                        <td className="py-3 px-2">{participant.tallaCamisa || 'N/A'}</td>
                         <td className="py-3 px-2">{participant.banco || 'N/A'}</td>
                         <td className="py-3 px-2">{participant.monto ? `L ${participant.monto}` : 'N/A'}</td>
                         <td className="py-3 px-2 font-mono text-sm">{participant.referencia || 'N/A'}</td>

@@ -41,12 +41,16 @@ const Inscripcion = () => {
     banco: '',
     monto: '',
     referencia: '',
+    tallaCamisa: '',
     comprobante: null as File | null
   });
 
   const bancos = [
     'BAC Honduras',
-    
+  ];
+
+  const tallasCamisa = [
+    '14','16','XS', 'S', 'M', 'L', 'XL', 'XXL'
   ];
 
   const calculateCategory = (birthDate: string, distance: string): string => {
@@ -76,6 +80,15 @@ const Inscripcion = () => {
         variant: "destructive",
         title: "Error",
         description: "Debes aceptar el reglamento para continuar",
+      });
+      return;
+    }
+
+    if (!formData.tallaCamisa) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Selecciona la talla de camisa.",
       });
       return;
     }
@@ -145,6 +158,7 @@ const Inscripcion = () => {
         banco: formData.banco,
         monto: formData.monto.trim(),
         referencia: formData.referencia.trim(),
+        tallaCamisa: formData.tallaCamisa,
         comprobanteFile: formData.comprobante,
       });
 
@@ -168,6 +182,7 @@ const Inscripcion = () => {
         banco: '',
         monto: '',
         referencia: '',
+        tallaCamisa: '',
         comprobante: null
       });
       setAcceptedRules(false);
@@ -316,7 +331,24 @@ const Inscripcion = () => {
                   required
                 />
               </div>
-              
+               <div className="space-y-2">
+                <Label htmlFor="tallaCamisa">Talla de Camisa *</Label>
+                <Select
+                  value={formData.tallaCamisa}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, tallaCamisa: value }))}
+                >
+                  <SelectTrigger id="tallaCamisa">
+                    <SelectValue placeholder="Selecciona la talla" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tallasCamisa.map((talla) => (
+                      <SelectItem key={talla} value={talla}>
+                        {talla}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email *</Label>
                 <Input
