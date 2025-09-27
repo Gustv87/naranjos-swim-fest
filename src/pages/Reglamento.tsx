@@ -23,11 +23,7 @@ const Reglamento = () => {
       title: 'Equipo de Seguridad',
       description: 'Salvavidas certificados, embarcaciones de apoyo, paramédicos y ambulancia estarán presentes durante todo el evento.'
     },
-    {
-      icon: <Trophy className="h-6 w-6" />,
-      title: 'Premiación',
-      description: 'Se premiará a los tres primeros lugares de cada categoría (femenino y masculino).'
-    }
+   
   ];
 
   const categories = [
@@ -130,7 +126,7 @@ const Reglamento = () => {
               
               <h4 className="font-semibold text-primary mb-2">Kit Incluye</h4>
               <p className="text-muted-foreground mb-4">
-                Gorro, chip de cronometraje y dorsal
+                Gorro
               </p>
               
               <h4 className="font-semibold text-primary mb-2">Cupo</h4>
@@ -157,6 +153,13 @@ const Reglamento = () => {
                   </div>
                 </div>
               ))}
+              <div className="flex items-start gap-4 p-4 rounded-lg bg-muted/30">
+                <div className="text-primary"><Users className="h-6 w-6" /></div>
+                <div>
+                  <h4 className="font-semibold text-primary mb-2">Costo de Inscripción</h4>
+                  <p className="text-sm text-muted-foreground">L 300.00. Por participante!!  Deposita en BAC Honduras 743657881 a nombre de CARLOS RENE CERRATO OSORIO.</p>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>

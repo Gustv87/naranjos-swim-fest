@@ -53,14 +53,9 @@ const Index = () => {
       description: 'Salvavidas y paramédicos certificados'
     },
     {
-      icon: <Trophy className="h-6 w-6" />,
-      title: 'Premiación',
-      description: 'Primeros 3 lugares por categoría'
-    },
-    {
       icon: <Users className="h-6 w-6" />,
       title: 'Inscripción',
-      description: 'Costo: L 300. Deposita en BAC Honduras 743657881 a nombre de CARLOS RENE CERRATO OSORIO.'
+      description: 'Costo: L 300. Por Participante Deposita en BAC Honduras 743657881 a nombre de CARLOS RENE CERRATO OSORIO.'
     }
   ];
 
@@ -130,7 +125,7 @@ const Index = () => {
       {/* Highlights */}
       <section className="py-16 px-4">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             {highlights.map((item, index) => (
               <Card key={index} className="card-gradient shadow-card hover:shadow-button transition-smooth">
                 <CardHeader className="text-center">
@@ -198,11 +193,11 @@ const Index = () => {
                   <strong>Fecha:</strong> 12 de octubre de 2025<br />
                   <strong>Lugar:</strong> Lago de Yojoa, Los Naranjos<br />
                   <strong>Cupo:</strong> 100 participantes<br />
-                  <strong>Costo de Inscripcion:</strong> Lps. 300.00<br />
+                  <strong>Costo de Inscripcion por participante:</strong> Lps. 300.00<br />
                   <strong>Entrega de kit:</strong> 11 de octubre en Villa Santa Martha
                 </p>
                 <p>
-                  El kit incluye gorro, chip y dorsal. El uso del gorro es obligatorio durante 
+                  El kit incluye gorro. El uso del gorro es obligatorio durante 
                   la competencia. Contamos con salvavidas, embarcaciones de apoyo, paramédicos 
                   y ambulancia para garantizar la seguridad de todos los participantes.
                 </p>
@@ -246,15 +241,7 @@ const Index = () => {
                   </div>
                 </div>
                 
-                <div className="flex items-start gap-3">
-                  <Trophy className="h-5 w-5 text-primary mt-0.5" />
-                  <div>
-                    <p className="font-semibold">Premiación</p>
-                    <p className="text-sm text-muted-foreground">
-                      Primeros 3 lugares por categoría (femenino y masculino)
-                    </p>
-                  </div>
-                </div>
+                
               </CardContent>
             </Card>
           </div>
