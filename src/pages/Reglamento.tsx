@@ -23,7 +23,7 @@ const Reglamento = () => {
       title: 'Equipo de Seguridad',
       description: 'Salvavidas certificados, embarcaciones de apoyo, paramédicos y ambulancia estarán presentes durante todo el evento.'
     },
-   
+
   ];
 
   const categories = [
@@ -42,9 +42,7 @@ const Reglamento = () => {
   ];
 
   const equipment = [
-    'Gorro de natación (obligatorio, incluido en el kit)',
-    'Chip de cronometraje (incluido en el kit)',
-    'Dorsal (incluido en el kit)',
+    "Gorro de natación",
     'Traje de baño adecuado',
     'Gafas de natación (recomendadas)'
   ];
@@ -59,7 +57,7 @@ const Reglamento = () => {
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
-      
+
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="mb-8">
           <Link to="/">
@@ -105,30 +103,20 @@ const Reglamento = () => {
             <div>
               <h4 className="font-semibold text-primary mb-2">Fecha y Hora</h4>
               <p className="text-muted-foreground mb-4">12 de octubre de 2025, 7:00 AM</p>
-              
+
               <h4 className="font-semibold text-primary mb-2">Ubicación</h4>
               <p className="text-muted-foreground mb-4">
                 Lago de Yojoa, Los Naranjos, Honduras
               </p>
-              
+
               <h4 className="font-semibold text-primary mb-2">Organización</h4>
               <p className="text-muted-foreground">
                 Entrenadores de Natación San Pedro Sula
               </p>
             </div>
-            
+
             <div>
-              <h4 className="font-semibold text-primary mb-2">Entrega de Kit</h4>
-              <p className="text-muted-foreground mb-4">
-                11 de octubre de 2025<br />
-                Villa Santa Martha (sección Informaciones)
-              </p>
-              
-              <h4 className="font-semibold text-primary mb-2">Kit Incluye</h4>
-              <p className="text-muted-foreground mb-4">
-                Gorro
-              </p>
-              
+
               <h4 className="font-semibold text-primary mb-2">Cupo</h4>
               <p className="text-muted-foreground">
                 Máximo 100 participantes
@@ -240,7 +228,7 @@ const Reglamento = () => {
                   <li>• Personal de rescate acuático</li>
                 </ul>
               </div>
-              
+
               <div>
                 <h4 className="font-semibold text-primary mb-2">Asistencia Médica</h4>
                 <ul className="text-sm text-muted-foreground space-y-1">
@@ -250,11 +238,11 @@ const Reglamento = () => {
                 </ul>
               </div>
             </div>
-            
+
             <div className="bg-muted/30 p-4 rounded-lg">
               <h4 className="font-semibold text-primary mb-2">Retiro Voluntario</h4>
               <p className="text-sm text-muted-foreground">
-                Los participantes pueden retirarse voluntariamente en cualquier momento, 
+                Los participantes pueden retirarse voluntariamente en cualquier momento,
                 pero deben avisar inmediatamente al personal de seguridad más cercano.
               </p>
             </div>
@@ -268,16 +256,16 @@ const Reglamento = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-muted-foreground">
-              La organización se reserva el derecho de suspender, posponer o modificar el evento 
-              en caso de condiciones climáticas adversas o calidad del agua que comprometan la 
+              La organización se reserva el derecho de suspender, posponer o modificar el evento
+              en caso de condiciones climáticas adversas o calidad del agua que comprometan la
               seguridad de los participantes.
             </p>
-            
+
             <div className="bg-lake-light/20 p-4 rounded-lg border border-lake-blue/20">
               <h4 className="font-semibold text-primary mb-2">Monitoreo Continuo</h4>
               <p className="text-sm text-muted-foreground">
-                Las condiciones del lago y el clima serán monitoreadas constantemente. 
-                Cualquier cambio o decisión será comunicada a los participantes con la 
+                Las condiciones del lago y el clima serán monitoreadas constantemente.
+                Cualquier cambio o decisión será comunicada a los participantes con la
                 mayor anticipación posible.
               </p>
             </div>
@@ -294,15 +282,15 @@ const Reglamento = () => {
               <div>
                 <h4 className="font-semibold text-primary mb-2">Tiempo para Reclamaciones</h4>
                 <p className="text-sm text-muted-foreground">
-                  Las reclamaciones sobre resultados deben presentarse hasta 30 minutos 
+                  Las reclamaciones sobre resultados deben presentarse hasta 30 minutos
                   después de la publicación de los resultados oficiales.
                 </p>
               </div>
-              
+
               <div>
                 <h4 className="font-semibold text-primary mb-2">Publicación de Resultados</h4>
                 <p className="text-sm text-muted-foreground">
-                  Los resultados se publicarán en el sitio web oficial y en el área 
+                  Los resultados se publicarán en el sitio web oficial y en el área
                   de premiación el mismo día del evento.
                 </p>
               </div>
@@ -321,14 +309,14 @@ const Reglamento = () => {
             <p className="text-sm text-muted-foreground">
               <strong>IMPORTANTE:</strong> Al inscribirse en este evento, el participante acepta:
             </p>
-            
+
             <ul className="text-sm text-muted-foreground space-y-2 pl-4">
               <li>• Conocer y aceptar todos los términos del presente reglamento</li>
               <li>• Eximinar de responsabilidad a los organizadores por cualquier accidente, lesión o daño</li>
               <li>• Confirmar que posee las condiciones físicas necesarias para participar</li>
               <li>• Autorizar el uso de su imagen en material promocional del evento</li>
             </ul>
-            
+
             <div className="bg-destructive/10 p-4 rounded-lg border border-destructive/20">
               <p className="text-sm font-medium text-destructive">
                 La participación en este evento es bajo la total responsabilidad del participante.

@@ -150,7 +150,7 @@ const Inscripcion = () => {
 
       toast({
         title: "¡Inscripción registrada!",
-        description: `Tu dorsal provisional es el #${registration.dorsal}. Te contactaremos para validar tu pago.`,
+        description: `Te contactaremos para validar tu pago.`,
       });
 
       setFormData({

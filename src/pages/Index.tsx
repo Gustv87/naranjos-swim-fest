@@ -194,13 +194,7 @@ const Index = () => {
                   <strong>Lugar:</strong> Lago de Yojoa, Los Naranjos<br />
                   <strong>Cupo:</strong> 100 participantes<br />
                   <strong>Costo de Inscripcion por participante:</strong> Lps. 300.00<br />
-                  <strong>Entrega de kit:</strong> 11 de octubre en Villa Santa Martha
-                </p>
-                <p>
-                  El kit incluye gorro. El uso del gorro es obligatorio durante 
-                  la competencia. Contamos con salvavidas, embarcaciones de apoyo, paramédicos 
-                  y ambulancia para garantizar la seguridad de todos los participantes.
-                </p>
+                 </p>
               </div>
               <div className="mt-8">
                 <a 
