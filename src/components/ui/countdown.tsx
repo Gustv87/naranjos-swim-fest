@@ -56,7 +56,7 @@ export function Countdown({ targetDate, className = '' }: CountdownProps) {
               {unit.value.toString().padStart(2, '0')}
             </span>
           </div>
-          <span className="text-xs sm:text-sm text-muted-foreground mt-1 font-medium">
+          <span className="text-xs sm:text-sm text-white mt-1 font-medium">
             {unit.label}
           </span>
         </div>

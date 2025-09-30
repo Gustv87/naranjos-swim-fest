@@ -1,4 +1,5 @@
 import { Navigation } from '@/components/layout/navigation';
+import { FooterGM } from '@/components/layout/footer';
 import { Button } from '@/components/ui/button';
 import { FirebaseError } from 'firebase/app';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,12 +10,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CapacityIndicator } from '@/components/ui/capacity-indicator';
 import { useRegistrations } from '@/context/registration-context';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Upload, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const Inscripcion = () => {
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
   const { toast } = useToast();
   const { addRegistration, stats, isLoading: isRegistrationsLoading } = useRegistrations();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -44,6 +49,7 @@ const Inscripcion = () => {
     tallaCamisa: '',
     comprobante: null as File | null
   });
+  const [birthDateError, setBirthDateError] = useState('');
 
   const bancos = [
     'BAC Honduras',
@@ -53,23 +59,90 @@ const Inscripcion = () => {
     '14','16','XS', 'S', 'M', 'L', 'XL', 'XXL'
   ];
 
+  const MIN_AGE_BY_DISTANCE: Record<string, number> = {
+    '800m': 9,
+    '2km': 15,
+    '5km': 15,
+  };
+
+  const EVENT_DATE = new Date('2025-10-12');
+
+  const getAgeOnEvent = (birthDate: string): number | null => {
+    if (!birthDate) return null;
+
+    const birth = new Date(birthDate);
+    if (Number.isNaN(birth.getTime())) return null;
+
+    let age = EVENT_DATE.getFullYear() - birth.getFullYear();
+    const hasHadBirthday =
+      EVENT_DATE.getMonth() > birth.getMonth() ||
+      (EVENT_DATE.getMonth() === birth.getMonth() && EVENT_DATE.getDate() >= birth.getDate());
+
+    if (!hasHadBirthday) {
+      age -= 1;
+    }
+
+    return age;
+  };
+
   const calculateCategory = (birthDate: string, distance: string): string => {
     if (!birthDate || !distance) return '';
-    
-    const birth = new Date(birthDate);
-    const eventDate = new Date('2025-10-12');
-    const age = eventDate.getFullYear() - birth.getFullYear();
-    
+
+    const age = getAgeOnEvent(birthDate);
+    if (age === null) return '';
+
     if (distance === '800m') {
+      if (age >= 9 && age <= 10) return 'Infantiles A (9-10)';
       if (age >= 11 && age <= 12) return 'Infantiles B (11-12)';
       if (age >= 13 && age <= 14) return 'Juveniles A (13-14)';
-      return 'Masters';
-    } else {
-      if (age >= 15 && age <= 17) return 'Juveniles B (15-17)';
-      if (age >= 18 && age <= 30) return '20-30';
-      if (age >= 31 && age <= 40) return '30-40';
-      return '40+';
+      if (age >= 15) return 'Masters';
+      return '';
     }
+
+    if (age >= 15 && age <= 17) return 'Juveniles B (15-17)';
+    if (age >= 18 && age <= 30) return '20-30';
+    if (age >= 31 && age <= 40) return '30-40';
+    return '40+';
+  };
+
+  const validateAgeForInputs = (birthDate: string, distance: string) => {
+    if (!birthDate) {
+      setBirthDateError('');
+      return;
+    }
+
+    const age = getAgeOnEvent(birthDate);
+
+    if (age === null) {
+      setBirthDateError('');
+      return;
+    }
+
+    const minAge = distance ? (MIN_AGE_BY_DISTANCE[distance] ?? 9) : 9;
+
+    if (age < minAge) {
+      setBirthDateError('Esta edad no es permitida para participar.');
+      return;
+    }
+
+    setBirthDateError('');
+  };
+
+  const handleBirthDateChange = (value: string) => {
+    setFormData(prev => {
+      const next = { ...prev, nacimiento: value };
+      const age = getAgeOnEvent(value);
+
+      if (age !== null && next.distancia) {
+        const minAgeForDistance = MIN_AGE_BY_DISTANCE[next.distancia] ?? 9;
+        if (age < minAgeForDistance) {
+          next.distancia = '';
+        }
+      }
+
+      validateAgeForInputs(next.nacimiento, next.distancia);
+      return next;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -92,6 +165,38 @@ const Inscripcion = () => {
       });
       return;
     }
+
+    const age = getAgeOnEvent(formData.nacimiento);
+    const distance = formData.distancia;
+
+    if (age === null) {
+      toast({
+        variant: "destructive",
+        title: "Edad no permitida",
+        description: "Verifica tu fecha de nacimiento.",
+      });
+      return;
+    }
+
+    const minAge = distance ? (MIN_AGE_BY_DISTANCE[distance] ?? 9) : 9;
+
+    if (age < minAge) {
+      const distanceLabel =
+        distance === '800m' ? '800 metros' :
+        distance === '2km' ? '2 kilómetros' :
+        distance === '5km' ? '5 kilómetros' :
+        'esta distancia';
+
+      toast({
+        variant: "destructive",
+        title: "Edad no permitida",
+        description: `La edad mínima para ${distanceLabel} es de ${minAge} años.`,
+      });
+      setBirthDateError('Esta edad no es permitida para participar.');
+      return;
+    }
+
+    setBirthDateError('');
 
     if (!isRegistrationOpen) {
       toast({
@@ -185,6 +290,7 @@ const Inscripcion = () => {
         tallaCamisa: '',
         comprobante: null
       });
+      setBirthDateError('');
       setAcceptedRules(false);
     } catch (error) {
       let description = 'No se pudo procesar tu inscripción. Intenta nuevamente.';
@@ -211,6 +317,12 @@ const Inscripcion = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const participantAge = getAgeOnEvent(formData.nacimiento);
+  const isDistanceDisabled = (distanceValue: string) => {
+    const minAge = MIN_AGE_BY_DISTANCE[distanceValue] ?? 9;
+    return participantAge !== null && participantAge < minAge;
   };
 
   if (!isRegistrationOpen && !isCapacityFull) {
@@ -327,9 +439,12 @@ const Inscripcion = () => {
                   id="nacimiento"
                   type="date"
                   value={formData.nacimiento}
-                  onChange={(e) => setFormData(prev => ({ ...prev, nacimiento: e.target.value }))}
+                  onChange={(e) => handleBirthDateChange(e.target.value)}
                   required
                 />
+                {birthDateError && (
+                  <p className="text-sm text-destructive">{birthDateError}</p>
+                )}
               </div>
                <div className="space-y-2">
                 <Label htmlFor="tallaCamisa">Talla de Camisa *</Label>
@@ -395,16 +510,28 @@ const Inscripcion = () => {
                 <Label htmlFor="distancia">Distancia *</Label>
                 <Select
                   value={formData.distancia}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, distancia: value }))}
+                  onValueChange={(value) =>
+                    setFormData(prev => {
+                      const next = { ...prev, distancia: value };
+                      validateAgeForInputs(next.nacimiento, next.distancia);
+                      return next;
+                    })
+                  }
                   required
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona la distancia" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="800m">800 metros</SelectItem>
-                    <SelectItem value="2km">2 kilómetros</SelectItem>
-                    <SelectItem value="5km">5 kilómetros</SelectItem>
+                    <SelectItem value="800m" disabled={isDistanceDisabled('800m')}>
+                      800 metros
+                    </SelectItem>
+                    <SelectItem value="2km" disabled={isDistanceDisabled('2km')}>
+                      2 kilómetros
+                    </SelectItem>
+                    <SelectItem value="5km" disabled={isDistanceDisabled('5km')}>
+                      5 kilómetros
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -584,7 +711,7 @@ const Inscripcion = () => {
               type="submit"
               size="lg"
               className="button-gradient shadow-button text-lg px-12 py-6"
-              disabled={isSubmitting || !acceptedRules}
+              disabled={isSubmitting || !acceptedRules || Boolean(birthDateError)}
             >
               {isSubmitting ? (
                 <>Procesando inscripción...</>

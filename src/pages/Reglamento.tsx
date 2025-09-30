@@ -1,4 +1,5 @@
 import { Navigation } from '@/components/layout/navigation';
+import { FooterGM } from '@/components/layout/footer';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -29,7 +30,7 @@ const Reglamento = () => {
   const categories = [
     {
       distance: '800m',
-      groups: ['Infantiles B (11-12 años)', 'Juveniles A (13-14 años)', 'Masters (15+ años)']
+      groups: ['Infantiles A (9-10 años)', 'Infantiles B (11-12 años)', 'Juveniles A (13-14 años)', 'Masters (15+ años)']
     },
     {
       distance: '2km',
@@ -102,7 +103,7 @@ const Reglamento = () => {
           <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <h4 className="font-semibold text-primary mb-2">Fecha y Hora</h4>
-              <p className="text-muted-foreground mb-4">12 de octubre de 2025, 7:00 AM</p>
+              <p className="text-muted-foreground mb-4">12 de octubre de 2025, 6:00 AM</p>
 
               <h4 className="font-semibold text-primary mb-2">Ubicación</h4>
               <p className="text-muted-foreground mb-4">
@@ -111,7 +112,7 @@ const Reglamento = () => {
 
               <h4 className="font-semibold text-primary mb-2">Organización</h4>
               <p className="text-muted-foreground">
-                Entrenadores de Natación San Pedro Sula
+                Swim + plus HN
               </p>
             </div>
 
@@ -302,19 +303,23 @@ const Reglamento = () => {
         <Card className="bg-destructive/5 border-destructive/20 shadow-card mb-8">
           <CardHeader>
             <CardTitle className="text-2xl text-destructive">
-              Deslinde de Responsabilidad
+              Aviso de Responsabilidad y Condiciones de Participación
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              <strong>IMPORTANTE:</strong> Al inscribirse en este evento, el participante acepta:
+              <strong>IMPORTANTE:</strong> Al inscribirse en este evento, el participante entiende y acepta que:
             </p>
 
             <ul className="text-sm text-muted-foreground space-y-2 pl-4">
-              <li>• Conocer y aceptar todos los términos del presente reglamento</li>
-              <li>• Eximinar de responsabilidad a los organizadores por cualquier accidente, lesión o daño</li>
-              <li>• Confirmar que posee las condiciones físicas necesarias para participar</li>
-              <li>• Autorizar el uso de su imagen en material promocional del evento</li>
+              <li>• Ha leído y está de acuerdo con el reglamento del evento.</li>
+              <li>• Los organizadores no se hacen responsables por accidentes, lesiones o daños.</li>
+              <li>• Declara estar en buena condición física y sin problemas médicos que le impidan participar.</li>
+              <li>• Autoriza a recibir atención médica en caso de emergencia.</li>
+              <li>• Se compromete a usar el equipo de seguridad requerido y seguir todas las instrucciones del personal.</li>
+              <li>• Acepta que la inscripción no es reembolsable.</li>
+              <li>• Autoriza el uso de su imagen en fotografías o videos del evento.</li>
+              <li>• Si es menor de edad, confirma que su padre, madre o tutor realizó la inscripción y asume la responsabilidad.</li>
             </ul>
 
             <div className="bg-destructive/10 p-4 rounded-lg border border-destructive/20">

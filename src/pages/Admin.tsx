@@ -1,4 +1,5 @@
 import { Navigation } from '@/components/layout/navigation';
+import { FooterGM } from '@/components/layout/footer';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -538,22 +539,22 @@ const filteredParticipants = useMemo(() => {
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm md:text-base">
                 <thead>
                   <tr className="border-b border-border">
-                    <th className="text-left py-3 px-2">Fecha</th>
-                    <th className="text-left py-3 px-2">Dorsal</th>
-                    <th className="text-left py-3 px-2">Nombre</th>
-                    <th className="text-left py-3 px-2">DNI</th>
-                    <th className="text-left py-3 px-2">Distancia</th>
-                    <th className="text-left py-3 px-2">Categoría</th>
-                    <th className="text-left py-3 px-2">Talla</th>
-                    <th className="text-left py-3 px-2">Banco</th>
-                    <th className="text-left py-3 px-2">Monto</th>
-                    <th className="text-left py-3 px-2">Referencia</th>
-                    <th className="text-left py-3 px-2">Check-in</th>
-                    <th className="text-left py-3 px-2">Estado</th>
-                    <th className="text-left py-3 px-2">Acciones</th>
+                    <th className="text-left py-4 px-3">Fecha</th>
+                    <th className="text-left py-4 px-3">Dorsal</th>
+                    <th className="text-left py-4 px-3">Nombre</th>
+                    <th className="text-left py-4 px-3">DNI</th>
+                    <th className="text-left py-4 px-3">Distancia</th>
+                    <th className="text-left py-4 px-3">Categoría</th>
+                    <th className="text-left py-4 px-3">Talla</th>
+                    <th className="text-left py-4 px-3">Banco</th>
+                    <th className="text-left py-4 px-3">Monto</th>
+                    <th className="text-left py-4 px-3">Referencia</th>
+                    <th className="text-left py-4 px-3">Check-in</th>
+                    <th className="text-left py-4 px-3">Estado</th>
+                    <th className="text-left py-4 px-3">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -578,18 +579,18 @@ const filteredParticipants = useMemo(() => {
                   ) : (
                     filteredParticipants.map((participant) => (
                       <tr key={participant.id} className="border-b border-border hover:bg-muted/30">
-                        <td className="py-3 px-2">{formatDateTime(participant.createdAt)}</td>
-                        <td className="py-3 px-2 font-mono">#{participant.dorsal}</td>
-                        <td className="py-3 px-2 font-medium">{participant.nombre}</td>
-                        <td className="py-3 px-2 font-mono text-sm">{participant.dni}</td>
-                        <td className="py-3 px-2">{participant.distancia}</td>
-                        <td className="py-3 px-2">{participant.categoria || 'N/A'}</td>
-                        <td className="py-3 px-2">{participant.tallaCamisa || 'N/A'}</td>
-                        <td className="py-3 px-2">{participant.banco || 'N/A'}</td>
-                        <td className="py-3 px-2">{participant.monto ? `L ${participant.monto}` : 'N/A'}</td>
-                        <td className="py-3 px-2 font-mono text-sm">{participant.referencia || 'N/A'}</td>
-                        <td className="py-3 px-2">{participant.checkedInAt ? formatDateTime(participant.checkedInAt) : 'Pendiente'}</td>
-                        <td className="py-3 px-2">
+                        <td className="py-4 px-3">{formatDateTime(participant.createdAt)}</td>
+                        <td className="py-4 px-3 font-mono whitespace-nowrap">#{participant.dorsal}</td>
+                        <td className="py-4 px-3 font-medium whitespace-normal">{participant.nombre}</td>
+                        <td className="py-4 px-3 font-mono text-xs md:text-sm whitespace-nowrap">{participant.dni}</td>
+                        <td className="py-4 px-3">{participant.distancia}</td>
+                        <td className="py-4 px-3">{participant.categoria || 'N/A'}</td>
+                        <td className="py-4 px-3">{participant.tallaCamisa || 'N/A'}</td>
+                        <td className="py-4 px-3">{participant.banco || 'N/A'}</td>
+                        <td className="py-4 px-3">{participant.monto ? `L ${participant.monto}` : 'N/A'}</td>
+                        <td className="py-4 px-3 font-mono text-xs md:text-sm whitespace-nowrap">{participant.referencia || 'N/A'}</td>
+                        <td className="py-4 px-3">{participant.checkedInAt ? formatDateTime(participant.checkedInAt) : 'Pendiente'}</td>
+                        <td className="py-4 px-3">
                           <span
                             className={`px-2 py-1 rounded-full text-xs font-medium ${
                               participant.status === 'validated'
@@ -606,7 +607,7 @@ const filteredParticipants = useMemo(() => {
                                 : 'Rechazado'}
                           </span>
                         </td>
-                        <td className="py-3 px-2">
+                        <td className="py-4 px-3">
                           <div className="flex gap-1">
                             <Button size="sm" variant="outline" onClick={() => handleView(participant)}>Ver</Button>
                             <Button
