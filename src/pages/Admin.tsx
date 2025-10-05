@@ -20,10 +20,12 @@ const Admin = () => {
     .split(',')
     .map((email: string) => email.trim().toLowerCase())
     .filter(Boolean), []);
+  const localAdminPassword = import.meta.env.VITE_ADMIN_LOCAL_PASSWORD?.trim();
 
   const [credentials, setCredentials] = useState({ email: '', password: '' });
   const [authError, setAuthError] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [localSession, setLocalSession] = useState<{ email: string } | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -41,6 +43,17 @@ const Admin = () => {
 
       if (!allowedAdmins.includes(email)) {
         throw new Error('Este correo no está autorizado para acceder al panel.');
+      }
+
+      if (localAdminPassword && credentials.password === localAdminPassword) {
+        setUser(null);
+        setLocalSession({ email });
+        setAuthLoading(false);
+        toast({
+          title: 'Acceso autorizado',
+          description: 'Sesión iniciada en modo local',
+        });
+        return;
       }
 
       await signInWithEmailAndPassword(auth, email, credentials.password);
@@ -91,6 +104,7 @@ const Admin = () => {
         if (!allowedAdmins.includes(email)) {
           await signOut(auth);
           setUser(null);
+          setLocalSession(null);
           toast({
             variant: 'destructive',
             title: 'Acceso denegado',
@@ -98,6 +112,7 @@ const Admin = () => {
           });
         } else {
           setUser(currentUser);
+          setLocalSession(null);
         }
       } else {
         setUser(null);
@@ -109,11 +124,15 @@ const Admin = () => {
     return () => unsubscribe();
   }, [allowedAdmins, toast]);
 
-  const adminEmail = user?.email ?? '';
+  const adminEmail = (user?.email ?? localSession?.email) ?? '';
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
+      if (user) {
+        await signOut(auth);
+      }
+      setLocalSession(null);
+      setUser(null);
       toast({
         title: 'Sesión cerrada',
         description: 'Has salido del panel de administración.',
@@ -298,7 +317,7 @@ const filteredParticipants = useMemo(() => {
     });
   };
 
-  if (authLoading) {
+  if (authLoading && !localSession) {
     return (
       <div className="min-h-screen bg-background">
         <Navigation />
@@ -314,11 +333,11 @@ const filteredParticipants = useMemo(() => {
     );
   }
 
-  if (!user) {
+  if (!user && !localSession) {
     return (
       <div className="min-h-screen bg-background">
         <Navigation />
-        
+
         <div className="max-w-md mx-auto px-4 py-16">
           <Card className="card-gradient shadow-card">
             <CardHeader className="text-center">
@@ -519,6 +538,7 @@ const filteredParticipants = useMemo(() => {
                   onChange={(e) => setCategoryFilter(e.target.value)}
                 >
                   <option value="">Todas</option>
+                  <option value="Infantiles A (9-10)">Infantiles A (9-10)</option>
                   <option value="Infantiles B (11-12)">Infantiles B (11-12)</option>
                   <option value="Juveniles A (13-14)">Juveniles A (13-14)</option>
                   <option value="Juveniles B (15-17)">Juveniles B (15-17)</option>

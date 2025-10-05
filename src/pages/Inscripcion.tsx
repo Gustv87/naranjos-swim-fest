@@ -27,7 +27,7 @@ const Inscripcion = () => {
 
   const currentParticipants = stats.total;
   const maxParticipants = stats.max;
-  const isRegistrationOpen = new Date() < new Date('2025-10-04T23:59:59-06:00');
+  const isRegistrationOpen = new Date() < new Date('2025-10-08T23:59:59-06:00');
   const isCapacityFull = stats.capacityFull;
   const isCapacityDataLoading = isRegistrationsLoading;
 
@@ -56,7 +56,7 @@ const Inscripcion = () => {
   ];
 
   const tallasCamisa = [
-    '14','16','XS', 'S', 'M', 'L', 'XL', 'XXL'
+    '12','14','16','XS', 'S', 'M', 'L', 'XL', 'XXL'
   ];
 
   const MIN_AGE_BY_DISTANCE: Record<string, number> = {
@@ -118,6 +118,16 @@ const Inscripcion = () => {
       return;
     }
 
+    if (age < 9) {
+      setBirthDateError('La edad mínima para participar es 9 años.');
+      return;
+    }
+
+    if (age <= 10 && distance && distance !== '800m') {
+      setBirthDateError('Con 9 y 10 años solo puedes inscribirte en 800 metros.');
+      return;
+    }
+
     const minAge = distance ? (MIN_AGE_BY_DISTANCE[distance] ?? 9) : 9;
 
     if (age < minAge) {
@@ -133,10 +143,18 @@ const Inscripcion = () => {
       const next = { ...prev, nacimiento: value };
       const age = getAgeOnEvent(value);
 
-      if (age !== null && next.distancia) {
-        const minAgeForDistance = MIN_AGE_BY_DISTANCE[next.distancia] ?? 9;
-        if (age < minAgeForDistance) {
+      if (age !== null) {
+        if (age < 9) {
           next.distancia = '';
+        } else if (next.distancia) {
+          if (age <= 10 && next.distancia !== '800m') {
+            next.distancia = '';
+          } else {
+            const minAgeForDistance = MIN_AGE_BY_DISTANCE[next.distancia] ?? 9;
+            if (age < minAgeForDistance) {
+              next.distancia = '';
+            }
+          }
         }
       }
 
@@ -175,6 +193,26 @@ const Inscripcion = () => {
         title: "Edad no permitida",
         description: "Verifica tu fecha de nacimiento.",
       });
+      return;
+    }
+
+    if (age < 9) {
+      toast({
+        variant: "destructive",
+        title: "Edad no permitida",
+        description: "La edad mínima para participar es 9 años.",
+      });
+      setBirthDateError('La edad mínima para participar es 9 años.');
+      return;
+    }
+
+    if (age <= 10 && distance && distance !== '800m') {
+      toast({
+        variant: "destructive",
+        title: "Edad no permitida",
+        description: "Con 9 y 10 años solo puedes inscribirte en la distancia de 800 metros.",
+      });
+      setBirthDateError('Con 9 y 10 años solo puedes inscribirte en 800 metros.');
       return;
     }
 
@@ -335,7 +373,7 @@ const Inscripcion = () => {
               <AlertCircle className="h-16 w-16 text-destructive mx-auto mb-4" />
               <CardTitle className="text-2xl">Inscripciones Cerradas</CardTitle>
               <CardDescription className="text-lg">
-                El período de inscripciones terminó el 4 de octubre de 2025
+                El período de inscripciones terminó el 8 de octubre de 2025
               </CardDescription>
             </CardHeader>
             <CardContent>

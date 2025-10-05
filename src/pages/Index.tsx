@@ -14,14 +14,14 @@ import { useRegistrations } from '@/context/registration-context';
 const Index = () => {
   const eventDate = new Date('2025-10-12T06:00:00-06:00');
   const { stats, isLoading: isRegistrationsLoading } = useRegistrations();
-  const isRegistrationOpen = new Date() < new Date('2025-10-04T23:59:59-06:00');
+  const isRegistrationOpen = new Date() < new Date('2025-10-08T23:59:59-06:00');
   const isCapacityFull = stats.capacityFull;
   const isHeroCtaDisabled = !isRegistrationOpen || isCapacityFull || isRegistrationsLoading;
 
   const distances = [
     {
       distance: '800m',
-      categories: ['Infantiles B (11-12)', 'Juveniles A (13-14)', 'Masters'],
+      categories: ['Infantiles A (9-10)', 'Infantiles B (11-12)', 'Juveniles A (13-14)', 'Masters'],
       description: 'Ideal para principiantes y nadadores jóvenes',
       icon: '🏊‍♀️',
       color: 'from-primary/20 to-primary/5'
@@ -49,11 +49,6 @@ const Index = () => {
       description: 'Salvavidas certificados, embarcaciones de apoyo, paramédicos y ambulancia en sitio.'
     },
     {
-      icon: <Award className="h-8 w-8" />,
-      title: 'Kit Completo',
-      description: 'Gorro oficial, chip de tiempo y dorsal personalizado para cada participante.'
-    },
-    {
       icon: <Droplets className="h-8 w-8" />,
       title: 'Aguas Cristalinas',
       description: 'Nada en el lago natural más grande de Honduras, rodeado de naturaleza.'
@@ -67,8 +62,7 @@ const Index = () => {
 
   const eventHighlights = [
     'Salida escalonada por categorías',
-    'Premiación a los 3 primeros por categoría',
-    'Medición de tiempos con chip',
+    'Medición de tiempoo',
     'Resultados oficiales publicados el mismo día'
   ];
 
@@ -159,7 +153,7 @@ const Index = () => {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
               {features.map((feature, index) => (
                 <Card 
                   key={index} 
@@ -253,7 +247,7 @@ const Index = () => {
                   <div className="bg-card p-4 rounded-lg border shadow-sm">
                     <Users className="h-6 w-6 text-primary mb-2" />
                     <p className="text-sm font-semibold text-foreground">Cupo Limitado</p>
-                    <p className="text-sm text-muted-foreground">70 participantes</p>
+                    <p className="text-sm text-muted-foreground">100 participantes</p>
                   </div>
                   <div className="bg-card p-4 rounded-lg border shadow-sm">
                     <FileText className="h-6 w-6 text-primary mb-2" />
@@ -294,7 +288,7 @@ const Index = () => {
                       <ul className="space-y-2 text-sm text-muted-foreground">
                         <li className="flex items-start gap-2">
                           <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                          <span>Cierre de inscripciones: <strong className="text-foreground">4 de octubre, 2025</strong></span>
+                          <span>Cierre de inscripciones: <strong className="text-foreground">8 de octubre, 2025</strong></span>
                         </li>
                         <li className="flex items-start gap-2">
                           <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
@@ -307,20 +301,7 @@ const Index = () => {
                       </ul>
                     </div>
 
-                    <div>
-                      <h4 className="font-semibold text-foreground mb-3 flex items-center gap-2">
-                        <Award className="h-5 w-5 text-primary" />
-                        Kit Incluido
-                      </h4>
-                      <ul className="space-y-2 text-sm text-muted-foreground">
-                        {['Gorro oficial (uso obligatorio)', 'Chip de tiempo profesional', 'Dorsal personalizado con tu número'].map((item, i) => (
-                          <li key={i} className="flex items-start gap-2">
-                            <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                            <span>{item}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                    
 
                     <div>
                       <h4 className="font-semibold text-foreground mb-3 flex items-center gap-2">
