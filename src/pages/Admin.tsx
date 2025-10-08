@@ -6,15 +6,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { useRegistrations, type Registration, type RegistrationStatus } from '@/context/registration-context';
-import { Lock, Shield, Users, Download, QrCode, Search } from 'lucide-react';
+import { useRegistrations, type Registration, type RegistrationStatus, type RegistrationEditableFields } from '@/context/registration-context';
+import { Lock, Shield, Users, Download, QrCode, Search, Clock, XCircle, CheckCircle2, Pencil } from 'lucide-react';
 import { auth } from '@/lib/firebase';
 import { FirebaseError } from 'firebase/app';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const Admin = () => {
+  const SPECIAL_RESULT_TOKENS = ['NT', 'NS', 'DNS', 'DNF'];
+  const SHIRT_SIZES = ['12', '14', '16', 'XS', 'S', 'M', 'L', 'XL', 'XXL'];
+  const EVENT_DATE = new Date('2025-10-12');
   const { toast } = useToast();
-  const { registrations, stats, updateRegistrationStatus, toggleCheckIn, isLoading: registrationsLoading, error } = useRegistrations();
+  const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateRegistrationResult, updateRegistrationData, isLoading: registrationsLoading, error } = useRegistrations();
 
   const allowedAdmins = useMemo(() => (import.meta.env.VITE_ADMIN_EMAILS || 'admin@losnaranjos.com')
     .split(',')
@@ -32,6 +37,50 @@ const Admin = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [distanceFilter, setDistanceFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [resultEdits, setResultEdits] = useState<Record<string, string>>({});
+  const [resultSaving, setResultSaving] = useState<Record<string, boolean>>({});
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editParticipant, setEditParticipant] = useState<Registration | null>(null);
+  const [editForm, setEditForm] = useState<RegistrationEditableFields>({});
+  const [resultEdit, setResultEdit] = useState('');
+  const [editError, setEditError] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  const getAgeOnEvent = (birthDate: string): number | null => {
+    if (!birthDate) return null;
+    const birth = new Date(birthDate);
+    if (Number.isNaN(birth.getTime())) return null;
+
+    let age = EVENT_DATE.getFullYear() - birth.getFullYear();
+    const hasHadBirthday =
+      EVENT_DATE.getMonth() > birth.getMonth() ||
+      (EVENT_DATE.getMonth() === birth.getMonth() && EVENT_DATE.getDate() >= birth.getDate());
+
+    if (!hasHadBirthday) {
+      age -= 1;
+    }
+
+    return age;
+  };
+
+  const calculateCategory = (birthDate: string, distance: string): string => {
+    if (!birthDate || !distance) return '';
+    const age = getAgeOnEvent(birthDate);
+    if (age === null) return '';
+
+    if (distance === '800m') {
+      if (age >= 9 && age <= 10) return 'Infantiles A (9-10)';
+      if (age >= 11 && age <= 12) return 'Infantiles B (11-12)';
+      if (age >= 13 && age <= 14) return 'Juveniles A (13-14)';
+      if (age >= 15) return 'Masters';
+      return '';
+    }
+
+    if (age >= 15 && age <= 17) return 'Juveniles B (15-17)';
+    if (age >= 18 && age <= 30) return '20-30';
+    if (age >= 31 && age <= 40) return '30-40';
+    return '40+';
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -146,7 +195,7 @@ const Admin = () => {
     }
   };
 
-const filteredParticipants = useMemo(() => {
+  const filteredParticipants = useMemo(() => {
     const search = searchTerm.trim().toLowerCase();
 
     return registrations
@@ -170,7 +219,14 @@ const filteredParticipants = useMemo(() => {
 
         return matchesSearch && matchesStatus && matchesDistance && matchesCategory;
       })
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      .sort((a, b) => {
+        const dorsalA = parseInt(a.dorsal ?? '0', 10);
+        const dorsalB = parseInt(b.dorsal ?? '0', 10);
+        if (Number.isFinite(dorsalA) && Number.isFinite(dorsalB) && dorsalA !== dorsalB) {
+          return dorsalA - dorsalB;
+        }
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      });
   }, [registrations, searchTerm, statusFilter, distanceFilter, categoryFilter]);
 
   const formatDateTime = (iso: string) => {
@@ -178,6 +234,47 @@ const filteredParticipants = useMemo(() => {
     return Number.isNaN(date.getTime())
       ? iso
       : date.toLocaleString('es-HN', { dateStyle: 'medium', timeStyle: 'short' });
+  };
+
+  const getResultInputValue = (participant: Registration) => {
+    if (participant.id in resultEdits) {
+      return resultEdits[participant.id];
+    }
+    return participant.resultTime ?? '';
+  };
+
+  const handleResultInputChange = (id: string, value: string) => {
+    setResultEdits((prev) => ({ ...prev, [id]: value }));
+  };
+
+  const handleResultSave = async (participant: Registration) => {
+    const rawValue = resultEdits[participant.id] ?? participant.resultTime ?? '';
+    const trimmedValue = rawValue.trim();
+    const sanitizedValue = trimmedValue
+      ? (SPECIAL_RESULT_TOKENS.includes(trimmedValue.toUpperCase())
+          ? trimmedValue.toUpperCase()
+          : trimmedValue)
+      : '';
+
+    setResultSaving((prev) => ({ ...prev, [participant.id]: true }));
+
+    try {
+      await updateRegistrationResult(participant.id, sanitizedValue || null, adminEmail || 'admin');
+      setResultEdits((prev) => ({ ...prev, [participant.id]: sanitizedValue }));
+      toast({
+        title: 'Resultado actualizado',
+        description: sanitizedValue ? `Tiempo guardado: ${sanitizedValue}` : 'Resultado eliminado',
+      });
+    } catch (err) {
+      const description = err instanceof Error ? err.message : 'No se pudo guardar el resultado.';
+      toast({
+        variant: 'destructive',
+        title: 'Error al guardar',
+        description,
+      });
+    } finally {
+      setResultSaving((prev) => ({ ...prev, [participant.id]: false }));
+    }
   };
 
   const handleStatusChange = async (id: string, status: RegistrationStatus) => {
@@ -198,7 +295,7 @@ const filteredParticipants = useMemo(() => {
 
     try {
       const overrides = status === 'pending' ? { checkedInAt: null, checkedInBy: null } : {};
-      await updateRegistrationStatus(id, status, overrides);
+      await updateRegistrationStatus(id, status, adminEmail || 'admin', overrides);
       toast(messages[status]);
     } catch (err) {
       console.error('Error al actualizar estado', err);
@@ -250,6 +347,113 @@ const filteredParticipants = useMemo(() => {
     }
   };
 
+  const openEditDialog = (participant: Registration) => {
+    setEditParticipant(participant);
+    const initial: RegistrationEditableFields = {
+      nombre: participant.nombre,
+      dni: participant.dni,
+      dorsal: participant.dorsal,
+      nacimiento: participant.nacimiento,
+      email: participant.email,
+      telefono: participant.telefono,
+      club: participant.club,
+      distancia: participant.distancia || '800m',
+      sexo: participant.sexo || 'M',
+      categoria: participant.categoria,
+      emergenciaNombre: participant.emergenciaNombre,
+      emergenciaTel: participant.emergenciaTel,
+      medico: participant.medico,
+      banco: participant.banco,
+      monto: participant.monto,
+      referencia: participant.referencia,
+      tallaCamisa: participant.tallaCamisa,
+    };
+
+    if (!initial.distancia) {
+      initial.distancia = '800m';
+    }
+
+    initial.categoria = calculateCategory(initial.nacimiento ?? '', initial.distancia ?? '');
+
+    setEditForm(initial);
+    setResultEdit(participant.resultTime ?? '');
+    setEditError('');
+    setIsEditOpen(true);
+  };
+
+  const closeEditDialog = () => {
+    setIsEditOpen(false);
+    setEditParticipant(null);
+    setEditForm({});
+    setResultEdit('');
+    setEditError('');
+    setIsSavingEdit(false);
+  };
+
+  const handleEditFieldChange = (field: keyof RegistrationEditableFields, value: string) => {
+    setEditForm((prev) => {
+      const next = { ...prev, [field]: value };
+      if (field === 'nacimiento' || field === 'distancia') {
+        const birth = field === 'nacimiento' ? value : (next.nacimiento ?? '');
+        const distance = field === 'distancia' ? value : (next.distancia ?? '');
+        next.categoria = calculateCategory(birth ?? '', distance ?? '');
+      }
+      return next;
+    });
+  };
+
+  const handleEditSave = async () => {
+    if (!editParticipant) return;
+    setIsSavingEdit(true);
+    setEditError('');
+
+    try {
+      await updateRegistrationData(editParticipant.id, editForm, adminEmail || 'admin');
+
+      const trimmed = resultEdit.trim();
+      const currentResult = editParticipant.resultTime ?? '';
+
+      const hasResultChanged = trimmed !== currentResult.trim();
+
+      if (hasResultChanged) {
+        let sanitized: string | null = null;
+        if (trimmed) {
+          const upper = trimmed.toUpperCase();
+          if (SPECIAL_RESULT_TOKENS.includes(upper)) {
+            sanitized = upper;
+          } else {
+            const parts = trimmed.split(':').map((p) => p.trim());
+            if (parts.some((p) => p === '' || Number.isNaN(Number(p)))) {
+              throw new Error('Formato de tiempo inválido. Usa mm:ss, hh:mm:ss o los códigos NT/NS.');
+            }
+            if (parts.length !== 2 && parts.length !== 3) {
+              throw new Error('Formato de tiempo inválido. Usa mm:ss o hh:mm:ss.');
+            }
+            sanitized = trimmed;
+          }
+        }
+
+        await updateRegistrationResult(editParticipant.id, sanitized, adminEmail || 'admin');
+      }
+
+      toast({
+        title: 'Datos actualizados',
+        description: 'La inscripción se actualizó correctamente.',
+      });
+      closeEditDialog();
+    } catch (err) {
+      const description = err instanceof Error ? err.message : 'No se pudo actualizar la inscripción.';
+      setEditError(description);
+      toast({
+        variant: 'destructive',
+        title: 'Error al editar',
+        description,
+      });
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
   const handleExport = () => {
     if (!registrations.length) {
       toast({
@@ -275,6 +479,7 @@ const filteredParticipants = useMemo(() => {
       'Check-in',
       'Check-in por',
       'Fecha registro',
+      'URL comprobante',
     ];
 
     const rows = registrations.map((participant) => [
@@ -293,6 +498,7 @@ const filteredParticipants = useMemo(() => {
       participant.checkedInAt ? participant.checkedInAt : '',
       participant.checkedInBy ?? '',
       participant.createdAt,
+      participant.comprobanteUrl ?? '',
     ]);
 
     const csvContent = [header, ...rows]
@@ -549,6 +755,10 @@ const filteredParticipants = useMemo(() => {
                 </select>
               </div>
             </div>
+            <p className="text-xs text-muted-foreground mt-4">
+              Registra tiempos en formato <strong>mm:ss</strong> o <strong>hh:mm:ss</strong>. También puedes usar los códigos
+              <strong> NT</strong> (No Time) y <strong>NS</strong> (No Show) cuando corresponda.
+            </p>
           </CardContent>
         </Card>
 
@@ -568,6 +778,7 @@ const filteredParticipants = useMemo(() => {
                     <th className="text-left py-4 px-3">DNI</th>
                     <th className="text-left py-4 px-3">Distancia</th>
                     <th className="text-left py-4 px-3">Categoría</th>
+                    <th className="text-left py-4 px-3">Tiempo</th>
                     <th className="text-left py-4 px-3">Talla</th>
                     <th className="text-left py-4 px-3">Banco</th>
                     <th className="text-left py-4 px-3">Monto</th>
@@ -580,19 +791,19 @@ const filteredParticipants = useMemo(() => {
                 <tbody>
                   {registrationsLoading ? (
                     <tr>
-                      <td className="py-6 text-center text-muted-foreground" colSpan={13}>
+                      <td className="py-6 text-center text-muted-foreground" colSpan={14}>
                         Cargando inscripciones...
                       </td>
                     </tr>
                   ) : error ? (
                     <tr>
-                      <td className="py-6 text-center text-destructive" colSpan={13}>
+                      <td className="py-6 text-center text-destructive" colSpan={14}>
                         {error}
                       </td>
                     </tr>
                   ) : filteredParticipants.length === 0 ? (
                     <tr>
-                      <td className="py-6 text-center text-muted-foreground" colSpan={13}>
+                      <td className="py-6 text-center text-muted-foreground" colSpan={14}>
                         No hay inscripciones que coincidan con los filtros seleccionados.
                       </td>
                     </tr>
@@ -605,6 +816,46 @@ const filteredParticipants = useMemo(() => {
                         <td className="py-4 px-3 font-mono text-xs md:text-sm whitespace-nowrap">{participant.dni}</td>
                         <td className="py-4 px-3">{participant.distancia}</td>
                         <td className="py-4 px-3">{participant.categoria || 'N/A'}</td>
+                        <td className="py-4 px-3 min-w-[220px]">
+                          <div className="flex flex-col gap-2">
+                            <div className="flex items-center gap-2">
+                              <Input
+                                value={getResultInputValue(participant)}
+                                onChange={(e) => handleResultInputChange(participant.id, e.target.value)}
+                                placeholder="mm:ss o NT/NS"
+                                className="h-9"
+                              />
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="flex items-center gap-1"
+                                disabled={resultSaving[participant.id]}
+                                onClick={() => handleResultSave(participant)}
+                              >
+                                <Clock className="h-4 w-4" />
+                                Guardar
+                              </Button>
+                            </div>
+                            <div className="text-xs text-muted-foreground flex items-center gap-2">
+                              {participant.resultTime ? (
+                                <span className="flex items-center gap-1 text-primary">
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  {participant.resultTime}
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-1">
+                                  <XCircle className="h-3 w-3" />
+                                  Pendiente
+                                </span>
+                              )}
+                              {participant.resultRecordedAt && (
+                                <span>
+                                  · {new Date(participant.resultRecordedAt).toLocaleString('es-HN')}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </td>
                         <td className="py-4 px-3">{participant.tallaCamisa || 'N/A'}</td>
                         <td className="py-4 px-3">{participant.banco || 'N/A'}</td>
                         <td className="py-4 px-3">{participant.monto ? `L ${participant.monto}` : 'N/A'}</td>
@@ -637,6 +888,15 @@ const filteredParticipants = useMemo(() => {
                               disabled={!participant.comprobanteUrl}
                             >
                               Comprobante
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-1"
+                              onClick={() => openEditDialog(participant)}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                              Editar
                             </Button>
                             <Button
                               size="sm"
@@ -685,6 +945,230 @@ const filteredParticipants = useMemo(() => {
             </div>
           </CardContent>
         </Card>
+
+        <Dialog open={isEditOpen} onOpenChange={(open) => (open ? setIsEditOpen(true) : closeEditDialog())}>
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>Editar inscripción</DialogTitle>
+              <DialogDescription>
+                Ajusta los datos del participante para corregir información suministrada por error.
+              </DialogDescription>
+            </DialogHeader>
+
+            {editParticipant && (
+              <div className="grid gap-6">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Nombre completo</Label>
+                    <Input
+                      value={editForm.nombre ?? ''}
+                      onChange={(e) => handleEditFieldChange('nombre', e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>DNI (13 dígitos)</Label>
+                    <Input
+                      value={editForm.dni ?? ''}
+                      onChange={(e) => handleEditFieldChange('dni', e.target.value.replace(/\D/g, '').slice(0, 13))}
+                      maxLength={13}
+                      inputMode="numeric"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Dorsal</Label>
+                    <Input
+                      value={editForm.dorsal ?? ''}
+                      onChange={(e) => handleEditFieldChange('dorsal', e.target.value.replace(/\D/g, '').slice(0, 3))}
+                      maxLength={3}
+                      inputMode="numeric"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Fecha de nacimiento</Label>
+                    <Input
+                      type="date"
+                      value={editForm.nacimiento ?? ''}
+                      onChange={(e) => handleEditFieldChange('nacimiento', e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Email</Label>
+                    <Input
+                      type="email"
+                      value={editForm.email ?? ''}
+                      onChange={(e) => handleEditFieldChange('email', e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Teléfono</Label>
+                    <Input
+                      value={editForm.telefono ?? ''}
+                      onChange={(e) => handleEditFieldChange('telefono', e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Club / Equipo</Label>
+                    <Input
+                      value={editForm.club ?? ''}
+                      onChange={(e) => handleEditFieldChange('club', e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Distancia</Label>
+                    <Select
+                      value={editForm.distancia ?? '800m'}
+                      onValueChange={(value) => handleEditFieldChange('distancia', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona distancia" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="800m">800 metros</SelectItem>
+                        <SelectItem value="2km">2 kilómetros</SelectItem>
+                        <SelectItem value="5km">5 kilómetros</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Sexo</Label>
+                    <Select
+                      value={editForm.sexo ?? 'M'}
+                      onValueChange={(value) => handleEditFieldChange('sexo', value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona sexo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="F">Femenino</SelectItem>
+                        <SelectItem value="M">Masculino</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Categoría asignada</Label>
+                    <Input value={editForm.categoria ?? ''} readOnly className="bg-muted" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Talla de camisa</Label>
+                    <Input
+                      value={editForm.tallaCamisa ?? ''}
+                      onChange={(e) => handleEditFieldChange('tallaCamisa', e.target.value)}
+                      list="shirt-sizes"
+                    />
+                    <datalist id="shirt-sizes">
+                      {SHIRT_SIZES.map((size) => (
+                        <option key={size} value={size} />
+                      ))}
+                    </datalist>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Contacto de emergencia</Label>
+                    <Input
+                      value={editForm.emergenciaNombre ?? ''}
+                      onChange={(e) => handleEditFieldChange('emergenciaNombre', e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Teléfono de emergencia</Label>
+                    <Input
+                      value={editForm.emergenciaTel ?? ''}
+                      onChange={(e) => handleEditFieldChange('emergenciaTel', e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Condición médica</Label>
+                    <Input
+                      value={editForm.medico ?? ''}
+                      onChange={(e) => handleEditFieldChange('medico', e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Banco / Plataforma</Label>
+                    <Input
+                      value={editForm.banco ?? ''}
+                      onChange={(e) => handleEditFieldChange('banco', e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Monto (L)</Label>
+                    <Input
+                      value={editForm.monto ?? ''}
+                      onChange={(e) => handleEditFieldChange('monto', e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Número de referencia</Label>
+                    <Input
+                      value={editForm.referencia ?? ''}
+                      onChange={(e) => handleEditFieldChange('referencia', e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Tiempo oficial (mm:ss, hh:mm:ss, NT/NS/DNS/DNF)</Label>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Input
+                        value={resultEdit}
+                        onChange={(e) => setResultEdit(e.target.value)}
+                        placeholder="mm:ss"
+                        className="sm:flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setResultEdit('')}
+                      >
+                        Limpiar
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Usa NT (No Time), NS (No Show), DNS o DNF para casos especiales.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-md border border-dashed border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+                  <p><strong>Dorsal:</strong> #{editParticipant.dorsal}</p>
+                  <p><strong>Registrado:</strong> {formatDateTime(editParticipant.createdAt)}</p>
+                  {editParticipant.comprobanteUrl && (
+                    <p>
+                      <strong>Comprobante:</strong>{' '}
+                      <a
+                        href={editParticipant.comprobanteUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary underline"
+                      >
+                        Ver comprobante
+                      </a>
+                    </p>
+                  )}
+                </div>
+
+                {editError && <p className="text-sm text-destructive">{editError}</p>}
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button variant="outline" type="button" onClick={closeEditDialog} disabled={isSavingEdit}>
+                Cancelar
+              </Button>
+              <Button type="button" onClick={handleEditSave} disabled={isSavingEdit}>
+                {isSavingEdit ? 'Guardando…' : 'Guardar cambios'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <FooterGM />
       </div>
     </div>
   );

@@ -7,7 +7,8 @@ service cloud.firestore {
           'nombre', 'dni', 'nacimiento', 'email', 'telefono', 'club', 'distancia', 'sexo',
           'categoria', 'emergenciaNombre', 'emergenciaTel', 'medico', 'banco', 'monto',
           'referencia', 'tallaCamisa', 'comprobanteNombre', 'comprobanteUrl', 'comprobantePath',
-          'dorsal', 'status', 'createdAt', 'checkedInAt', 'checkedInBy'
+          'dorsal', 'status', 'createdAt', 'checkedInAt', 'checkedInBy', 'dniNormalized',
+          'resultTime', 'resultSeconds', 'resultRecordedAt', 'resultRecordedBy', 'updatedAt', 'updatedBy'
         ]);
       }
 
@@ -17,9 +18,23 @@ service cloud.firestore {
         && request.resource.data.status == 'pending';
 
       allow update: if allowedKeys(request.resource.data)
-        && request.resource.data.diff(resource.data).changedKeys().hasOnly(['status', 'checkedInAt', 'checkedInBy'])
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'nombre', 'dni', 'dniNormalized', 'nacimiento', 'email', 'telefono', 'club',
+          'distancia', 'sexo', 'categoria', 'emergenciaNombre', 'emergenciaTel', 'medico',
+          'banco', 'monto', 'referencia', 'tallaCamisa', 'dorsal',
+          'status', 'checkedInAt', 'checkedInBy',
+          'resultTime', 'resultSeconds', 'resultRecordedAt', 'resultRecordedBy',
+          'updatedAt', 'updatedBy'
+        ])
         && (request.resource.data.checkedInAt == null || request.resource.data.checkedInAt is timestamp)
-        && (request.resource.data.checkedInBy == null || request.resource.data.checkedInBy is string);
+        && (request.resource.data.checkedInBy == null || request.resource.data.checkedInBy is string)
+        && (request.resource.data.resultRecordedAt == null || request.resource.data.resultRecordedAt is timestamp)
+        && (request.resource.data.resultRecordedBy == null || request.resource.data.resultRecordedBy is string)
+        && (request.resource.data.resultTime == null || request.resource.data.resultTime is string)
+        && (request.resource.data.resultSeconds == null || request.resource.data.resultSeconds is number)
+        && (request.resource.data.dniNormalized == null || request.resource.data.dniNormalized is string)
+        && (request.resource.data.updatedAt == null || request.resource.data.updatedAt is timestamp)
+        && (request.resource.data.updatedBy == null || request.resource.data.updatedBy is string);
 
       allow delete: if false;
     }

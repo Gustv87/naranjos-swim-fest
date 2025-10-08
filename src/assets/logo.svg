@@ -1,0 +1,8 @@
+<svg width="160" height="40" viewBox="0 0 160 40" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Logo placeholder</title>
+  <desc id="desc">Reemplaza este archivo con el logo oficial.</desc>
+  <rect width="160" height="40" rx="8" fill="#0b5487" />
+  <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="Inter, sans-serif" font-size="16" fill="white">
+    TU LOGO AQUÍ
+  </text>
+</svg>

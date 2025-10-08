@@ -14,7 +14,7 @@ import { useRegistrations } from '@/context/registration-context';
 const Index = () => {
   const eventDate = new Date('2025-10-12T06:00:00-06:00');
   const { stats, isLoading: isRegistrationsLoading } = useRegistrations();
-  const isRegistrationOpen = new Date() < new Date('2025-10-08T23:59:59-06:00');
+  const isRegistrationOpen = new Date() < new Date('2025-10-07T23:59:59-06:00');
   const isCapacityFull = stats.capacityFull;
   const isHeroCtaDisabled = !isRegistrationOpen || isCapacityFull || isRegistrationsLoading;
 
@@ -216,6 +216,22 @@ const Index = () => {
           </div>
         </section>
 
+        {/* Resultados visibles */}
+        <section className="py-20 px-4 bg-gradient-to-b from-background to-muted/20">
+          <div className="max-w-5xl mx-auto text-center space-y-8">
+            <Badge variant="secondary" className="mx-auto w-fit">Resultados públicos</Badge>
+            <h2 className="text-4xl md:text-5xl font-bold text-foreground">Consulta los tiempos oficiales</h2>
+            <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto">
+              Accede a la vista de resultados para revisar posiciones y tiempos por distancia y categoría, actualizados en tiempo real durante el evento.
+            </p>
+            <Link to="/resultados" className="inline-flex">
+              <Button size="lg" className="button-gradient shadow-button text-lg px-8 py-6 h-auto font-semibold">
+                Ver resultados publicados
+              </Button>
+            </Link>
+          </div>
+        </section>
+
         {/* Event Info */}
         <section className="py-20 px-4 bg-gradient-to-b from-muted/30 to-background">
           <div className="max-w-7xl mx-auto">
@@ -288,7 +304,7 @@ const Index = () => {
                       <ul className="space-y-2 text-sm text-muted-foreground">
                         <li className="flex items-start gap-2">
                           <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                          <span>Cierre de inscripciones: <strong className="text-foreground">8 de octubre, 2025</strong></span>
+                          <span>Cierre de inscripciones: <strong className="text-foreground">7 de octubre, 2025</strong></span>
                         </li>
                         <li className="flex items-start gap-2">
                           <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />

@@ -1,73 +1,105 @@
-# Welcome to your Lovable project
+# Encuentro de Aguas Abiertas Los Naranjos
 
-## Project info
+Sitio oficial del evento de natación en aguas abiertas “Los Naranjos 2025”. Permite difundir información del encuentro, gestionar inscripciones de atletas, validar pagos, registrar tiempos oficiales y publicar resultados en tiempo real.
 
-**URL**: https://lovable.dev/projects/c5eb21a5-bd19-4c95-89f1-c67b9bc2d1a3
+## Características principales
 
-## How can I edit this code?
+- **Landing informativa** con hero, cronómetro, distancias, reglamento y CTA dinámico que se desactiva al cerrarse el período de inscripción.
+- **Formulario de inscripción** con validaciones avanzadas (edad por distancia, DNI único, subida de comprobantes hasta 15 MB, App Check para evitar abuso).
+- **Panel administrativo** (requiere autenticación de Firebase) para:
+  - Validar/rechazar inscripciones y controlar check-in.
+  - Editar cualquier dato de un participante (incluido dorsal) con auditoría (`updatedBy`, `updatedAt`).
+  - Registrar tiempos con soporte para códigos `NT`, `NS`, `DNS`, `DNF`.
+  - Descargar CSV con toda la información y URL pública del comprobante.
+- **Resultados en vivo** agrupados por distancia, filtrables por categoría y ordenados por dorsal.
+- **Página 404 personalizada** compatible con GitHub Pages y fallback SPA.
 
-There are several ways of editing your application.
+## Requisitos
 
-**Use Lovable**
+- Node.js 18 o superior
+- npm 9 o superior
+- Cuenta de Firebase con Firestore, Storage y Authentication habilitados
+- (Opcional pero recomendado) reCAPTCHA v3 para App Check
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/c5eb21a5-bd19-4c95-89f1-c67b9bc2d1a3) and start prompting.
+## Configuración rápida
 
-Changes made via Lovable will be committed automatically to this repo.
+1. **Clonar e instalar dependencias**
+   ```bash
+   git clone <repo-url>
+   cd naranjos-swim-fest
+   npm install
+   ```
 
-**Use your preferred IDE**
+2. **Configurar variables de entorno**
+   Crea un archivo `.env` en la raíz con los valores reales de Firebase (basado en `.env.example`):
+   ```env
+   VITE_FIREBASE_API_KEY=...
+   VITE_FIREBASE_AUTH_DOMAIN=...
+   VITE_FIREBASE_PROJECT_ID=...
+   VITE_FIREBASE_STORAGE_BUCKET=...
+   VITE_FIREBASE_MESSAGING_SENDER_ID=...
+   VITE_FIREBASE_APP_ID=...
+   VITE_FIREBASE_MEASUREMENT_ID=...
+   VITE_ADMIN_EMAILS=correo1@dominio.com,correo2@dominio.com
+   VITE_ADMIN_LOCAL_PASSWORD= # Opcional, sólo para desarrollo local
+   VITE_RECAPTCHA_SITE_KEY=   # Site key de reCAPTCHA v3 (opcional pero recomendado)
+   ```
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+3. **Firebase App Check (opcional)**
+   - En la consola de Firebase → *App Check* → habilita reCAPTCHA v3 para tu app web.
+   - Copia el site key en `VITE_RECAPTCHA_SITE_KEY`.
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+4. **Reglas de seguridad**
+   - Firestore: `firebase/firestore.rules`
+   - Storage: `firebase/storage.rules`
 
-Follow these steps:
+   Despliega las reglas antes de usar el sistema:
+   ```bash
+   firebase deploy --only firestore:rules
+   firebase deploy --only storage
+   ```
+   Las reglas actuales restringen la lectura/escritura a través de App Check y controlan qué campos puede actualizar un administrador.
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+5. **Iniciar en modo desarrollo**
+   ```bash
+   npm run dev
+   ```
+   La app se sirve en `http://localhost:8080`.
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+6. **Compilar y desplegar**
+   ```bash
+   npm run build
+   npm run deploy   # Publica en GitHub Pages (dist/)
+   ```
 
-# Step 3: Install the necessary dependencies.
-npm i
+## Autenticación y administración
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+- Usa Firebase Authentication (correo/contraseña) para los correos listados en `VITE_ADMIN_EMAILS`.
+- Para pruebas locales puedes definir `VITE_ADMIN_LOCAL_PASSWORD`; en producción deja ese valor vacío para forzar autenticación real.
+- Cada acción administrativa guarda `updatedBy` y `updatedAt` para auditar quién modificó un registro.
 
-**Edit a file directly in GitHub**
+## Estructura destacada
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+- `src/pages/Index.tsx`: landing page.
+- `src/pages/Inscripcion.tsx`: formulario de inscripción con validaciones y subida de comprobantes.
+- `src/pages/Admin.tsx`: panel administrativo.
+- `src/pages/Resultados.tsx`: resultados públicos filtrables.
+- `src/context/registration-context.tsx`: lógica central de Firestore/Storage.
+- `firebase/firestore.rules` y `firebase/storage.rules`: reglas de seguridad.
 
-**Use GitHub Codespaces**
+## Buenas prácticas y mantenimiento
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+- **Auditoría**: revisa periódicamente los registros para asegurarte de que `updatedBy` coincide con el historial de acciones.
+- **Límites de Storage**: aunque se permiten archivos hasta 15 MB, es recomendable depurar comprobantes antiguos para reducir costos.
+- **Respaldo**: utiliza exportaciones de Firestore para tener copias de seguridad previas al evento.
+- **Actualización de dependencias**: ejecuta `npm audit` y `npm outdated` con regularidad.
 
-## What technologies are used for this project?
+## Licencia
 
-This project is built with:
+Este proyecto es propiedad de los organizadores del Encuentro de Aguas Abiertas Los Naranjos. El código no está licenciado para uso público sin autorización explícita.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Soporte
 
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/c5eb21a5-bd19-4c95-89f1-c67b9bc2d1a3) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+- Reportes técnicos: abre un issue en el repositorio privado.
+- Contacto operativo: `info@swimplushn.com`
+- Sitio oficial: <https://swimplushn.com>

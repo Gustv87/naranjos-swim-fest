@@ -12,6 +12,7 @@ export function Navigation() {
   const navigation = [
     { name: 'Inicio', href: '/' },
     { name: 'Inscribirme', href: '/inscripcion' },
+    { name: 'Resultados', href: '/resultados' },
     { name: 'Reglamento', href: '/reglamento' },
   ];
 

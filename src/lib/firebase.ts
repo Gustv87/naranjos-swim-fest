@@ -3,6 +3,7 @@ import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getAuth } from "firebase/auth";
 import { getAnalytics, isSupported } from "firebase/analytics";
+import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -19,6 +20,15 @@ const app = initializeApp(firebaseConfig);
 const analyticsPromise = isSupported().then((supported) =>
   supported ? getAnalytics(app) : null
 );
+
+const appCheckSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+
+if (typeof window !== "undefined" && appCheckSiteKey) {
+  initializeAppCheck(app, {
+    provider: new ReCaptchaV3Provider(appCheckSiteKey),
+    isTokenAutoRefreshEnabled: true,
+  });
+}
 
 const db = getFirestore(app);
 

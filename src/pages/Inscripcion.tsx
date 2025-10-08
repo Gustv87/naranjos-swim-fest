@@ -10,10 +10,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CapacityIndicator } from '@/components/ui/capacity-indicator';
 import { useRegistrations } from '@/context/registration-context';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ChangeEvent } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Upload, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
+
+const MAX_COMPROBANTE_SIZE_MB = 15;
+const MAX_COMPROBANTE_SIZE_BYTES = MAX_COMPROBANTE_SIZE_MB * 1024 * 1024;
 
 const Inscripcion = () => {
   useEffect(() => {
@@ -27,7 +30,7 @@ const Inscripcion = () => {
 
   const currentParticipants = stats.total;
   const maxParticipants = stats.max;
-  const isRegistrationOpen = new Date() < new Date('2025-10-08T23:59:59-06:00');
+  const isRegistrationOpen = new Date() < new Date('2025-10-07T23:59:59-06:00');
   const isCapacityFull = stats.capacityFull;
   const isCapacityDataLoading = isRegistrationsLoading;
 
@@ -50,6 +53,7 @@ const Inscripcion = () => {
     comprobante: null as File | null
   });
   const [birthDateError, setBirthDateError] = useState('');
+  const [dniError, setDniError] = useState('');
 
   const bancos = [
     'BAC Honduras',
@@ -163,6 +167,22 @@ const Inscripcion = () => {
     });
   };
 
+  const handleComprobanteChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+
+    if (file && file.size > MAX_COMPROBANTE_SIZE_BYTES) {
+      toast({
+        variant: 'destructive',
+        title: 'Archivo muy pesado',
+        description: `El comprobante supera los ${MAX_COMPROBANTE_SIZE_MB} MB permitidos. Reduce el tamaño o utiliza un formato más liviano.`,
+      });
+      event.target.value = '';
+      return;
+    }
+
+    setFormData((prev) => ({ ...prev, comprobante: file }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -183,6 +203,21 @@ const Inscripcion = () => {
       });
       return;
     }
+
+    const sanitizedDni = formData.dni.replace(/\D/g, '');
+
+    if (sanitizedDni.length !== 13) {
+      const message = 'El número de identidad debe tener 13 dígitos sin guiones.';
+      setDniError(message);
+      toast({
+        variant: "destructive",
+        title: "DNI inválido",
+        description: message,
+      });
+      return;
+    }
+
+    setDniError('');
 
     const age = getAgeOnEvent(formData.nacimiento);
     const distance = formData.distancia;
@@ -287,7 +322,7 @@ const Inscripcion = () => {
 
       const registration = await addRegistration({
         nombre: formData.nombre.trim(),
-        dni: formData.dni.trim(),
+        dni: sanitizedDni,
         nacimiento: formData.nacimiento,
         email: formData.email.trim(),
         telefono: formData.telefono.trim(),
@@ -329,6 +364,7 @@ const Inscripcion = () => {
         comprobante: null
       });
       setBirthDateError('');
+      setDniError('');
       setAcceptedRules(false);
     } catch (error) {
       let description = 'No se pudo procesar tu inscripción. Intenta nuevamente.';
@@ -342,6 +378,9 @@ const Inscripcion = () => {
           description = error.message;
         }
       } else if (error instanceof Error) {
+        if (error.message.toLowerCase().includes('dni')) {
+          setDniError(error.message);
+        }
         description = error.message === 'No hay cupos disponibles'
           ? 'Ya no hay cupos disponibles para este evento.'
           : error.message;
@@ -373,7 +412,7 @@ const Inscripcion = () => {
               <AlertCircle className="h-16 w-16 text-destructive mx-auto mb-4" />
               <CardTitle className="text-2xl">Inscripciones Cerradas</CardTitle>
               <CardDescription className="text-lg">
-                El período de inscripciones terminó el 8 de octubre de 2025
+                El período de inscripciones terminó el 7 de octubre de 2025
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -465,10 +504,19 @@ const Inscripcion = () => {
                 <Input
                   id="dni"
                   value={formData.dni}
-                  onChange={(e) => setFormData(prev => ({ ...prev, dni: e.target.value }))}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '').slice(0, 13);
+                    setDniError('');
+                    setFormData(prev => ({ ...prev, dni: value }));
+                  }}
                   required
-                  placeholder="0801-1990-12345"
+                  placeholder="0801199012345"
+                  inputMode="numeric"
+                  maxLength={13}
                 />
+                {dniError && (
+                  <p className="text-sm text-destructive">{dniError}</p>
+                )}
               </div>
               
               <div className="space-y-2">
@@ -696,14 +744,16 @@ const Inscripcion = () => {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="comprobante">Comprobante de pago * (PDF, JPG, PNG - máx. 5MB)</Label>
+                <Label htmlFor="comprobante">
+                  Comprobante de pago * (PDF, JPG, PNG - máx. {MAX_COMPROBANTE_SIZE_MB}MB)
+                </Label>
                 <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
                   <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                   <Input
                     id="comprobante"
                     type="file"
                     accept=".pdf,.jpg,.jpeg,.png"
-                    onChange={(e) => setFormData(prev => ({ ...prev, comprobante: e.target.files?.[0] || null }))}
+                    onChange={handleComprobanteChange}
                     required
                     className="max-w-sm mx-auto"
                   />

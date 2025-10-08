@@ -17,7 +17,7 @@ const Reglamento = () => {
     {
       icon: <Users className="h-6 w-6" />,
       title: 'Límite de Participantes',
-      description: 'Máximo 100 participantes. Las inscripciones se cerrarán al completar el cupo o el 8 de octubre de 2025.'
+      description: 'Máximo 100 participantes. Las inscripciones se cerrarán al completar el cupo o el 7 de octubre de 2025.'
     },
     {
       icon: <Shield className="h-6 w-6" />,
