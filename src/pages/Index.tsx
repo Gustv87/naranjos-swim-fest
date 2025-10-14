@@ -14,9 +14,23 @@ import { useRegistrations } from '@/context/registration-context';
 const Index = () => {
   const eventDate = new Date('2025-10-12T06:00:00-06:00');
   const { stats, isLoading: isRegistrationsLoading } = useRegistrations();
-  const isRegistrationOpen = new Date() < new Date('2025-10-07T23:59:59-06:00');
+  const registrationOpeningDate = new Date('2025-08-01T00:00:00-06:00');
+  const registrationCloseDate = new Date('2025-10-08T23:59:59-06:00');
+  const now = new Date();
+  const isRegistrationOpen = now >= registrationOpeningDate && now <= registrationCloseDate;
+  const registrationStatusLabel = (() => {
+    if (now < registrationOpeningDate) return 'Las inscripciones abrirán próximamente.';
+    if (now > registrationCloseDate) return 'Las inscripciones cerraron el 8 de octubre de 2025 a las 23:59:59 (UTC-06).';
+    return 'Proceso de inscripción en curso.';
+  })();
   const isCapacityFull = stats.capacityFull;
-  const isHeroCtaDisabled = !isRegistrationOpen || isCapacityFull || isRegistrationsLoading;
+  const isHeroCtaDisabled = isRegistrationsLoading;
+  const heroCtaLabel = (() => {
+    if (isRegistrationsLoading) return 'Cargando...';
+    if (isCapacityFull) return '🚫 Cupo Agotado';
+    if (isRegistrationOpen) return '🏊‍♂️ Inscribirme Ahora';
+    return 'Ver formulario de inscripción';
+  })();
 
   const distances = [
     {
@@ -104,15 +118,18 @@ const Index = () => {
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
-                <Link to="/inscripcion" className="hover-scale">
+                <div className="hover-scale" title={isRegistrationOpen ? undefined : registrationStatusLabel}>
                   <Button
                     size="lg"
-                    className="button-gradient shadow-button text-lg px-8 py-6 h-auto font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-smooth"
+                    className="button-gradient shadow-button text-lg px-8 py-6 h-auto font-semibold transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled={isHeroCtaDisabled}
+                    asChild
                   >
-                    {isCapacityFull ? '🚫 Cupo Agotado' : isRegistrationsLoading ? 'Cargando...' : '🏊‍♂️ Inscribirme Ahora'}
+                    <Link to="/inscripcion">
+                      {heroCtaLabel}
+                    </Link>
                   </Button>
-                </Link>
+                </div>
                 <Link to="/reglamento" className="hover-scale">
                   <Button
                     size="lg"

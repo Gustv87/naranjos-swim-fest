@@ -25,10 +25,12 @@ const formatTime = (time: string | null) => {
 };
 
 const ALL_CATEGORIES_VALUE = '__all__';
+const ALL_DISTANCES_VALUE = '__all_distances__';
 
 const Resultados = () => {
   const { registrations, isLoading } = useRegistrations();
   const [categoryFilter, setCategoryFilter] = useState<string>(ALL_CATEGORIES_VALUE);
+  const [distanceFilter, setDistanceFilter] = useState<string>(ALL_DISTANCES_VALUE);
 
   const availableCategories = useMemo(() => {
     const set = new Set<string>();
@@ -41,7 +43,8 @@ const Resultados = () => {
   }, [registrations]);
 
   const groupedByDistance = useMemo(() => {
-    const distances = ['800m', '2km', '5km'];
+    const allDistances = ['800m', '2km', '5km'];
+    const distances = distanceFilter === ALL_DISTANCES_VALUE ? allDistances : allDistances.filter((distance) => distance === distanceFilter);
 
     return distances.map((distance) => {
       const participants = registrations
@@ -82,21 +85,40 @@ const Resultados = () => {
 
           <Card className="card-gradient shadow-card">
             <CardContent className="py-6">
-              <div className="max-w-sm mx-auto text-left space-y-2">
-                <Label htmlFor="categoria">Filtrar por categoría</Label>
-                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                  <SelectTrigger id="categoria">
-                    <SelectValue placeholder="Todas las categorías" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={ALL_CATEGORIES_VALUE}>Todas</SelectItem>
-                    {availableCategories.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid gap-4 md:grid-cols-2 max-w-2xl mx-auto text-left">
+                <div className="space-y-2">
+                  <Label htmlFor="categoria">Filtrar por categoría</Label>
+                  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                    <SelectTrigger id="categoria">
+                      <SelectValue placeholder="Todas las categorías" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ALL_CATEGORIES_VALUE}>Todas</SelectItem>
+                      {availableCategories.map((category) => (
+                        <SelectItem key={category} value={category}>
+                          {category}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="distancia">Filtrar por distancia</Label>
+                  <Select value={distanceFilter} onValueChange={setDistanceFilter}>
+                    <SelectTrigger id="distancia">
+                      <SelectValue placeholder="Todas las distancias" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={ALL_DISTANCES_VALUE}>Todas</SelectItem>
+                      {['800m', '2km', '5km'].map((distance) => (
+                        <SelectItem key={distance} value={distance}>
+                          {distanceLabels[distance] ?? distance}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </CardContent>
           </Card>

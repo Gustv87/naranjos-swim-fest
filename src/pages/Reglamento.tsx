@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, Download, Clock, Users, Shield, Trophy, MapPin, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import reglamentoPdf from '@/assets/Reglamento Open Water Los Naranjos.pdf';
+import logoImage from '@/assets/Logo.webp';
 
 const Reglamento = () => {
   const rules = [
@@ -83,12 +84,18 @@ const Reglamento = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center">
-            <Button size="lg" className="button-gradient shadow-button" asChild>
-              <a href={reglamentoPdf} download target="_blank" rel="noopener noreferrer">
-                <Download className="mr-2 h-5 w-5" />
-                Descargar PDF Completo
-              </a>
-            </Button>
+            <div className="flex flex-wrap justify-center gap-3">
+              <Button size="lg" className="button-gradient shadow-button" asChild>
+                <a href={reglamentoPdf} download target="_blank" rel="noopener noreferrer">
+                  <Download className="mr-2 h-5 w-5" />
+                  Descargar PDF Completo
+                </a>
+              </Button>
+              <Button size="lg" variant="outline" onClick={handleExportReglamentoPdf}>
+                <FileText className="mr-2 h-5 w-5" />
+                Imprimir Reglamento
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
@@ -345,3 +352,235 @@ const Reglamento = () => {
 };
 
 export default Reglamento;
+  const escapeHtml = (value: unknown) =>
+    String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+  const handleExportReglamentoPdf = () => {
+    const exportWindow = window.open('', '_blank');
+    if (!exportWindow) {
+      alert('Permite ventanas emergentes en tu navegador para generar el PDF.');
+      return;
+    }
+
+    const now = new Date();
+    const formattedNow = now.toLocaleString('es-HN', { dateStyle: 'medium', timeStyle: 'short' });
+    const logoMarkup = `<div class="logo"><img src="${logoImage}" alt="Swim Plus" /></div>`;
+
+    const rulesHtml = rules.map((rule) => `
+      <div class="rule">
+        <h3>${escapeHtml(rule.title)}</h3>
+        <p>${escapeHtml(rule.description)}</p>
+      </div>
+    `).join('');
+
+    const categoriesHtml = categories.map((category) => `
+      <section class="category">
+        <h3>${escapeHtml(category.distance)}</h3>
+        <ul>
+          ${category.groups.map((group) => `<li>${escapeHtml(group)}</li>`).join('')}
+        </ul>
+      </section>
+    `).join('');
+
+    const equipmentHtml = equipment.map((item) => `<li>${escapeHtml(item)}</li>`).join('');
+    const prohibitionsHtml = prohibitions.map((item) => `<li>${escapeHtml(item)}</li>`).join('');
+
+    exportWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="es">
+        <head>
+          <meta charset="utf-8" />
+          <title>Reglamento Oficial - Swim Plus</title>
+          <style>
+            :root { color-scheme: only light; }
+            body {
+              font-family: 'Helvetica Neue', Arial, sans-serif;
+              margin: 32px;
+              color: #111827;
+              line-height: 1.5;
+            }
+            h1 {
+              margin: 0 0 8px;
+              font-size: 26px;
+              text-align: center;
+              color: #111827;
+            }
+            h2 {
+              margin: 24px 0 12px;
+              font-size: 20px;
+              color: #2563eb;
+            }
+            h3 {
+              margin: 16px 0 6px;
+              font-size: 16px;
+            }
+            .meta {
+              text-align: center;
+              font-size: 12px;
+              color: #6b7280;
+              margin-bottom: 20px;
+            }
+            .logo {
+              text-align: center;
+              margin-bottom: 16px;
+            }
+            .logo img {
+              max-width: 200px;
+              height: auto;
+              display: block;
+              margin: 0 auto;
+              background: transparent;
+              border-radius: 0;
+            }
+            .intro, .section {
+              margin-bottom: 20px;
+            }
+            .event-info {
+              border: 1px solid #d1d5db;
+              padding: 16px;
+              border-radius: 8px;
+              background: #f9fafb;
+            }
+            .event-info dl {
+              display: grid;
+              grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+              gap: 12px 24px;
+            }
+            .event-info dt {
+              font-weight: 600;
+              color: #2563eb;
+            }
+            .event-info dd {
+              margin: 0;
+              color: #374151;
+            }
+            .rules {
+              display: grid;
+              gap: 12px;
+            }
+            .rule {
+              border: 1px solid #e5e7eb;
+              padding: 12px;
+              border-radius: 8px;
+              background: #f5f5f5;
+            }
+            .category {
+              margin-bottom: 16px;
+              border-left: 4px solid #2563eb;
+              padding-left: 12px;
+            }
+            .category ul {
+              margin: 8px 0 0;
+              padding: 0;
+              list-style: disc inside;
+            }
+            ul.standard {
+              padding-left: 18px;
+              margin: 8px 0 0;
+            }
+            .highlight {
+              background: #fee2e2;
+              border: 1px solid #f87171;
+              border-radius: 8px;
+              padding: 12px;
+              color: #b91c1c;
+              font-weight: 600;
+            }
+            @media print {
+              body { margin: 24px; }
+              .event-info {
+                background: none;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          ${logoMarkup}
+          <h1>Reglamento Oficial</h1>
+          <p class="meta">Generado: ${escapeHtml(formattedNow)} • Encuentro de Aguas Abiertas Los Naranjos 2025</p>
+
+          <section class="intro">
+            <h2>Información del Evento</h2>
+            <div class="event-info">
+              <dl>
+                <div>
+                  <dt>Fecha y hora</dt>
+                  <dd>12 de octubre de 2025 • 6:00 AM</dd>
+                </div>
+                <div>
+                  <dt>Ubicación</dt>
+                  <dd>Lago de Yojoa, Los Naranjos, Honduras</dd>
+                </div>
+                <div>
+                  <dt>Organiza</dt>
+                  <dd>Swim+ HN</dd>
+                </div>
+                <div>
+                  <dt>Cupo máximo</dt>
+                  <dd>100 participantes</dd>
+                </div>
+                <div>
+                  <dt>Costo de inscripción</dt>
+                  <dd>L 300.00 • Depósito a BAC Honduras 743657881 (Carlos René Cerrato Osorio)</dd>
+                </div>
+              </dl>
+            </div>
+          </section>
+
+          <section class="section">
+            <h2>Normas Principales</h2>
+            <div class="rules">${rulesHtml}</div>
+          </section>
+
+          <section class="section">
+            <h2>Distancias y Categorías</h2>
+            ${categoriesHtml}
+          </section>
+
+          <section class="section">
+            <h2>Equipo Permitido</h2>
+            <ul class="standard">${equipmentHtml}</ul>
+          </section>
+
+          <section class="section">
+            <h2>Equipo Prohibido</h2>
+            <ul class="standard">${prohibitionsHtml}</ul>
+          </section>
+
+          <section class="section">
+            <h2>Medidas de Seguridad</h2>
+            <p>El evento cuenta con salvavidas certificados, embarcaciones de apoyo, personal de rescate acuático, paramédicos en meta y ambulancia disponible durante toda la competencia.</p>
+            <p>Los participantes pueden retirarse voluntariamente en cualquier momento, pero deben avisar inmediatamente al personal de seguridad más cercano.</p>
+          </section>
+
+          <section class="section">
+            <h2>Condiciones Climáticas y del Agua</h2>
+            <p>La organización se reserva el derecho de suspender, posponer o modificar el evento en caso de condiciones adversas que comprometan la seguridad de los participantes. El clima y la calidad del agua se monitorean constantemente.</p>
+          </section>
+
+          <section class="section">
+            <h2>Reclamaciones y Resultados</h2>
+            <p>Las reclamaciones sobre resultados deben presentarse hasta 30 minutos después de la publicación oficial. Los resultados se publicarán en el sitio web y el área de premiación el mismo día del evento.</p>
+          </section>
+
+          <section class="section">
+            <h2>Responsabilidad</h2>
+            <div class="highlight">
+              <p>Al inscribirse, el participante declara estar en condiciones de salud adecuadas y acepta que la organización no se hace responsable por accidentes o daños. Si el participante es menor de edad, su tutor legal asume la responsabilidad correspondiente.</p>
+            </div>
+          </section>
+        </body>
+      </html>
+    `);
+    exportWindow.document.close();
+    exportWindow.focus();
+    setTimeout(() => {
+      exportWindow.print();
+      exportWindow.close();
+    }, 250);
+  };

@@ -4,22 +4,32 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useRegistrations, type Registration, type RegistrationStatus, type RegistrationEditableFields } from '@/context/registration-context';
-import { Lock, Shield, Users, Download, QrCode, Search, Clock, XCircle, CheckCircle2, Pencil } from 'lucide-react';
+import { Lock, Shield, Users, Download, QrCode, Search, Clock, XCircle, CheckCircle2, Pencil, Plus, AlertCircle, FileText } from 'lucide-react';
+import logoImage from '@/assets/Logo.webp';
 import { auth } from '@/lib/firebase';
 import { FirebaseError } from 'firebase/app';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { registrationSchema, type RegistrationCreateInput } from '@/schema/registration';
 
 const Admin = () => {
-  const SPECIAL_RESULT_TOKENS = ['NT', 'NS', 'DNS', 'DNF'];
-  const SHIRT_SIZES = ['12', '14', '16', 'XS', 'S', 'M', 'L', 'XL', 'XXL'];
-  const EVENT_DATE = new Date('2025-10-12');
-  const { toast } = useToast();
-  const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateRegistrationResult, updateRegistrationData, isLoading: registrationsLoading, error } = useRegistrations();
+const SPECIAL_RESULT_TOKENS = ['NT', 'NS', 'DNS', 'DNF'];
+const DISTANCE_LABELS: Record<string, string> = {
+  '800m': '800 metros',
+  '2km': '2 kilómetros',
+  '5km': '5 kilómetros',
+};
+const SHIRT_SIZES = ['12', '14', '16', 'XS', 'S', 'M', 'L', 'XL', 'XXL'];
+const EVENT_DATE = new Date('2025-10-12');
+const { toast } = useToast();
+const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateRegistrationResult, updateRegistrationData, addRegistration, isLoading: registrationsLoading, error } = useRegistrations();
 
   const allowedAdmins = useMemo(() => (import.meta.env.VITE_ADMIN_EMAILS || 'admin@losnaranjos.com')
     .split(',')
@@ -45,6 +55,39 @@ const Admin = () => {
   const [resultEdit, setResultEdit] = useState('');
   const [editError, setEditError] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isSavingCreate, setIsSavingCreate] = useState(false);
+  const [createError, setCreateError] = useState('');
+
+  const hasCapacityLimit = typeof stats.max === 'number' && Number.isFinite(stats.max) && stats.max > 0;
+  const remainingLabel = hasCapacityLimit && typeof stats.remaining === 'number'
+    ? stats.remaining
+    : 'Sin límite';
+  const remainingDescription = hasCapacityLimit ? 'Cupos Restantes' : 'Cupos disponibles';
+  const manualCreateDescription = hasCapacityLimit
+    ? `Usa este formulario para agregar participantes adicionales (hasta ${stats.max} en total). Los campos obligatorios están marcados con *.`
+    : 'Usa este formulario para agregar participantes adicionales. No hay límite de cupos. Los campos obligatorios están marcados con *.';
+
+  const createForm = useForm<RegistrationCreateInput>({
+    resolver: zodResolver(registrationSchema),
+    defaultValues: {
+      nombre: '',
+      dni: '',
+      nacimiento: '',
+      email: '',
+      telefono: '',
+      club: '',
+      distancia: '800m',
+      sexo: 'M',
+      emergenciaNombre: '',
+      emergenciaTel: '',
+      medico: '',
+      banco: 'BAC Honduras',
+      monto: '300',
+      referencia: '',
+      tallaCamisa: '',
+    },
+  });
 
   const getAgeOnEvent = (birthDate: string): number | null => {
     if (!birthDate) return null;
@@ -94,22 +137,33 @@ const Admin = () => {
         throw new Error('Este correo no está autorizado para acceder al panel.');
       }
 
-      if (localAdminPassword && credentials.password === localAdminPassword) {
+      const startLocalSession = () => {
         setUser(null);
         setLocalSession({ email });
         setAuthLoading(false);
         toast({
-          title: 'Acceso autorizado',
-          description: 'Sesión iniciada en modo local',
+          title: 'Acceso autorizado (solo lectura)',
+          description: 'Sesión iniciada sin autenticarse en Firebase. Algunas acciones estarán deshabilitadas.',
         });
-        return;
-      }
+      };
 
-      await signInWithEmailAndPassword(auth, email, credentials.password);
-      toast({
-        title: 'Acceso autorizado',
-        description: 'Bienvenido al panel de administración',
-      });
+      try {
+        await signInWithEmailAndPassword(auth, email, credentials.password);
+        setLocalSession(null);
+        toast({
+          title: 'Acceso autorizado',
+          description: 'Bienvenido al panel de administración',
+        });
+      } catch (error) {
+        const fallbackEnabled = Boolean(localAdminPassword && credentials.password === localAdminPassword);
+
+        if (fallbackEnabled) {
+          startLocalSession();
+          return;
+        }
+
+        throw error;
+      }
     } catch (error) {
       let description = 'No se pudo autenticar. Intenta nuevamente.';
 
@@ -173,7 +227,16 @@ const Admin = () => {
     return () => unsubscribe();
   }, [allowedAdmins, toast]);
 
-  const adminEmail = (user?.email ?? localSession?.email) ?? '';
+  const adminEmail = (user?.email ?? localSession?.email)?.toLowerCase() ?? '';
+  const isReadOnlyMode = !user && Boolean(localSession);
+  const showReadOnlyWarning = () => {
+    toast({
+      variant: 'destructive',
+      title: 'Modo de solo lectura',
+      description: 'Inicia sesión con una cuenta autorizada de Firebase para editar y gestionar inscripciones.',
+    });
+  };
+  const readOnlyTooltip = isReadOnlyMode ? 'Modo de solo lectura. Inicia sesión con una cuenta autorizada para editar.' : undefined;
 
   const handleLogout = async () => {
     try {
@@ -243,11 +306,251 @@ const Admin = () => {
     return participant.resultTime ?? '';
   };
 
+  const escapeHtml = (value: unknown) =>
+    String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+  const formatOfficialResult = (time: string | null) => {
+    if (!time) return 'Pendiente';
+    const normalized = time.toUpperCase();
+    if (SPECIAL_RESULT_TOKENS.includes(normalized)) {
+      return normalized;
+    }
+    return time;
+  };
+
+  const handleExportPdf = () => {
+    if (!filteredParticipants.length) {
+      toast({
+        title: 'Sin datos',
+        description: 'No hay registros que coincidan con los filtros actuales.',
+      });
+      return;
+    }
+
+    const exportWindow = window.open('', '_blank');
+    if (!exportWindow) {
+      toast({
+        variant: 'destructive',
+        title: 'No se pudo abrir la ventana',
+        description: 'Permite ventanas emergentes en tu navegador para generar el PDF.',
+      });
+      return;
+    }
+
+    const now = new Date();
+    const formattedNow = now.toLocaleString('es-HN', { dateStyle: 'medium', timeStyle: 'short' });
+
+    const preferredDistances = ['800m', '2km', '5km'];
+    const distancesToExport = (() => {
+      if (distanceFilter) {
+        return filteredParticipants.some((participant) => participant.distancia === distanceFilter)
+          ? [distanceFilter]
+          : [];
+      }
+
+      const present = Array.from(new Set(filteredParticipants.map((participant) => participant.distancia)));
+      const ordered = preferredDistances.filter((distance) => present.includes(distance));
+      const extras = present.filter((distance) => !preferredDistances.includes(distance));
+      return [...ordered, ...extras];
+    })();
+
+    const sections = distancesToExport.map((distance) => {
+      const participants = filteredParticipants
+        .filter((participant) => participant.distancia === distance)
+        .sort((a, b) => {
+          const aHasTime = a.resultSeconds !== null;
+          const bHasTime = b.resultSeconds !== null;
+
+          if (aHasTime && bHasTime) {
+            return (a.resultSeconds ?? 0) - (b.resultSeconds ?? 0);
+          }
+
+          if (aHasTime) return -1;
+          if (bHasTime) return 1;
+
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+        });
+
+      if (!participants.length) return '';
+
+      let rank = 0;
+      const rows = participants.map((participant) => {
+        let position = '—';
+        if (participant.resultSeconds !== null) {
+          rank += 1;
+          position = String(rank);
+        }
+
+        return `
+          <tr>
+            <td>${position}</td>
+            <td>${escapeHtml(participant.dorsal)}</td>
+            <td>${escapeHtml(participant.nombre)}</td>
+            <td>${escapeHtml(participant.categoria || 'N/A')}</td>
+            <td>${escapeHtml(formatOfficialResult(participant.resultTime))}</td>
+          </tr>`;
+      }).join('');
+
+      const label = DISTANCE_LABELS[distance] ?? distance;
+
+      return `
+        <section class="distance">
+          <h2>${escapeHtml(label)}</h2>
+          <p class="distance-meta">${participants.length} participante${participants.length === 1 ? '' : 's'}</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Posición</th>
+                <th>Dorsal</th>
+                <th>Nombre</th>
+                <th>Categoría</th>
+                <th>Tiempo oficial</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </section>`;
+    }).filter(Boolean).join('');
+
+    if (!sections) {
+      toast({
+        title: 'Sin datos',
+        description: 'No se encontraron registros con los filtros aplicados.',
+      });
+      exportWindow.close();
+      return;
+    }
+
+    const filtersSummary = [
+      searchTerm ? `Búsqueda: "${escapeHtml(searchTerm)}"` : null,
+      statusFilter ? `Estado: ${escapeHtml(statusFilter)}` : null,
+      distanceFilter ? `Distancia: ${escapeHtml(DISTANCE_LABELS[distanceFilter] ?? distanceFilter)}` : null,
+      categoryFilter ? `Categoría: ${escapeHtml(categoryFilter)}` : null,
+    ].filter(Boolean).join(' • ');
+
+    const summaryBlock = filtersSummary
+      ? `<p class="filters">Filtros aplicados: ${filtersSummary}</p>`
+      : '<p class="filters">Sin filtros adicionales. Mostrando todos los participantes disponibles.</p>';
+
+    const heading = `Resultados filtrados (${filteredParticipants.length})`;
+    const logoMarkup = `<div class="logo"><img src="${logoImage}" alt="Swim Plus" /></div>`;
+
+    exportWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="es">
+        <head>
+          <meta charset="utf-8" />
+          <title>${escapeHtml(heading)}</title>
+          <style>
+            :root { color-scheme: only light; }
+            body {
+              font-family: 'Helvetica Neue', Arial, sans-serif;
+              margin: 32px;
+              color: #111827;
+            }
+            h1 {
+              margin: 0 0 4px;
+              font-size: 24px;
+            }
+            .meta {
+              font-size: 12px;
+              color: #6b7280;
+              margin-bottom: 16px;
+            }
+            .filters {
+              font-size: 12px;
+              background: #f3f4f6;
+              padding: 8px 12px;
+              border-radius: 6px;
+              margin-bottom: 16px;
+            }
+            .logo {
+              text-align: center;
+              margin-bottom: 16px;
+            }
+            .logo img {
+              max-width: 180px;
+              height: auto;
+              display: block;
+              margin: 0 auto;
+              background: transparent;
+              border-radius: 0;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              font-size: 12px;
+              margin-bottom: 24px;
+            }
+            th, td {
+              border: 1px solid #d1d5db;
+              padding: 8px;
+              text-align: left;
+            }
+            th {
+              background: #f3f4f6;
+              font-weight: 600;
+            }
+            tbody tr:nth-child(even) {
+              background: #f9fafb;
+            }
+            .distance {
+              margin-bottom: 32px;
+            }
+            .distance h2 {
+              margin: 0 0 4px;
+              font-size: 18px;
+              color: #2563eb;
+            }
+            .distance-meta {
+              margin: 0 0 12px;
+              font-size: 12px;
+              color: #6b7280;
+            }
+            @media print {
+              body { margin: 24px; }
+              .meta, .filters { color: #4b5563; background: none; }
+              .distance h2 { color: #1f2937; }
+            }
+          </style>
+        </head>
+        <body>
+          ${logoMarkup}
+          <h1>${escapeHtml(heading)}</h1>
+          <p class="meta">Generado: ${escapeHtml(formattedNow)}</p>
+          ${summaryBlock}
+          ${sections}
+        </body>
+      </html>
+    `);
+    exportWindow.document.close();
+    exportWindow.focus();
+    setTimeout(() => {
+      exportWindow.print();
+      exportWindow.close();
+    }, 250);
+
+    toast({
+      title: 'Vista lista para imprimir',
+      description: 'Selecciona "Guardar como PDF" en el diálogo de impresión.',
+    });
+  };
+
   const handleResultInputChange = (id: string, value: string) => {
     setResultEdits((prev) => ({ ...prev, [id]: value }));
   };
 
   const handleResultSave = async (participant: Registration) => {
+    if (isReadOnlyMode) {
+      showReadOnlyWarning();
+      return;
+    }
+
     const rawValue = resultEdits[participant.id] ?? participant.resultTime ?? '';
     const trimmedValue = rawValue.trim();
     const sanitizedValue = trimmedValue
@@ -278,6 +581,11 @@ const Admin = () => {
   };
 
   const handleStatusChange = async (id: string, status: RegistrationStatus) => {
+    if (isReadOnlyMode) {
+      showReadOnlyWarning();
+      return;
+    }
+
     const messages: Record<RegistrationStatus, { title: string; description: string }> = {
       validated: {
         title: 'Inscripción validada',
@@ -328,6 +636,11 @@ const Admin = () => {
   };
 
   const handleCheckIn = async (participant: Registration) => {
+    if (isReadOnlyMode) {
+      showReadOnlyWarning();
+      return;
+    }
+
     try {
       const shouldCheckIn = !participant.checkedInAt;
       await toggleCheckIn(participant.id, shouldCheckIn, adminEmail || 'admin@losnaranjos.com');
@@ -348,6 +661,11 @@ const Admin = () => {
   };
 
   const openEditDialog = (participant: Registration) => {
+    if (isReadOnlyMode) {
+      showReadOnlyWarning();
+      return;
+    }
+
     setEditParticipant(participant);
     const initial: RegistrationEditableFields = {
       nombre: participant.nombre,
@@ -403,11 +721,24 @@ const Admin = () => {
   };
 
   const handleEditSave = async () => {
+    if (isReadOnlyMode) {
+      showReadOnlyWarning();
+      return;
+    }
+
     if (!editParticipant) return;
     setIsSavingEdit(true);
     setEditError('');
 
     try {
+      if (auth.currentUser) {
+        try {
+          await auth.currentUser.getIdToken(true);
+        } catch (tokenError) {
+          console.warn('No se pudo refrescar el token antes de editar', tokenError);
+        }
+      }
+
       await updateRegistrationData(editParticipant.id, editForm, adminEmail || 'admin');
 
       const trimmed = resultEdit.trim();
@@ -442,7 +773,12 @@ const Admin = () => {
       });
       closeEditDialog();
     } catch (err) {
-      const description = err instanceof Error ? err.message : 'No se pudo actualizar la inscripción.';
+      let description = err instanceof Error ? err.message : 'No se pudo actualizar la inscripción.';
+
+      if (err instanceof FirebaseError && err.code === 'permission-denied') {
+        description = 'Firebase denegó la operación. Asegúrate de iniciar sesión con una cuenta autorizada y de tener App Check configurado correctamente.';
+      }
+
       setEditError(description);
       toast({
         variant: 'destructive',
@@ -453,6 +789,65 @@ const Admin = () => {
       setIsSavingEdit(false);
     }
   };
+
+  const handleCreateSubmit = createForm.handleSubmit(async (values) => {
+    if (isReadOnlyMode) {
+      showReadOnlyWarning();
+      return;
+    }
+
+    setIsSavingCreate(true);
+    setCreateError('');
+
+    try {
+      const categoria = calculateCategory(values.nacimiento, values.distancia);
+      if (!categoria) {
+        throw new Error('La fecha de nacimiento no es válida para la distancia seleccionada.');
+      }
+
+      await addRegistration({
+        nombre: values.nombre.trim(),
+        dni: values.dni.trim(),
+        nacimiento: values.nacimiento,
+        email: values.email.trim(),
+        telefono: values.telefono.trim(),
+        club: values.club?.trim() ?? '',
+        distancia: values.distancia,
+        sexo: values.sexo,
+        categoria,
+        emergenciaNombre: values.emergenciaNombre?.trim() ?? '',
+        emergenciaTel: values.emergenciaTel?.trim() ?? '',
+        medico: values.medico?.trim() ?? '',
+        banco: values.banco.trim(),
+        monto: values.monto.trim(),
+        referencia: values.referencia.trim(),
+        tallaCamisa: values.tallaCamisa?.trim() ?? '',
+        comprobanteFile: null,
+      });
+
+      toast({
+        title: 'Inscripción creada',
+        description: 'El participante fue agregado manualmente.',
+      });
+      createForm.reset();
+      setIsCreateOpen(false);
+    } catch (err) {
+      let description = err instanceof Error ? err.message : 'No se pudo crear la inscripción.';
+
+      if (err instanceof FirebaseError && err.code === 'permission-denied') {
+        description = 'Firebase denegó la operación. Asegúrate de iniciar sesión con una cuenta autorizada y de tener App Check configurado correctamente.';
+      }
+
+      setCreateError(description);
+      toast({
+        variant: 'destructive',
+        title: 'Error al crear inscripción',
+        description,
+      });
+    } finally {
+      setIsSavingCreate(false);
+    }
+  });
 
   const handleExport = () => {
     if (!registrations.length) {
@@ -627,6 +1022,15 @@ const Admin = () => {
           </div>
         </div>
 
+        {isReadOnlyMode && (
+          <Alert className="mb-8 border-warm-accent/40 bg-warm-accent/10">
+            <AlertTitle>Modo de solo lectura</AlertTitle>
+            <AlertDescription>
+              Puedes revisar información, pero las operaciones de edición están deshabilitadas. Inicia sesión con una cuenta autorizada para administrar inscripciones.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-6 gap-6 mb-8">
           <Card className="card-gradient shadow-card">
@@ -666,8 +1070,8 @@ const Admin = () => {
           
           <Card className="card-gradient shadow-card">
             <CardHeader className="text-center pb-3">
-              <CardTitle className="text-2xl text-primary">{stats.remaining}</CardTitle>
-              <CardDescription>Cupos Restantes</CardDescription>
+              <CardTitle className="text-2xl text-primary">{remainingLabel}</CardTitle>
+              <CardDescription>{remainingDescription}</CardDescription>
             </CardHeader>
           </Card>
         </div>
@@ -678,6 +1082,10 @@ const Admin = () => {
             <Download className="mr-2 h-4 w-4" />
             Exportar CSV
           </Button>
+          <Button className="button-gradient shadow-button" variant="outline" onClick={handleExportPdf}>
+            <FileText className="mr-2 h-4 w-4" />
+            Exportar PDF
+          </Button>
           <Button variant="outline">
             <QrCode className="mr-2 h-4 w-4" />
             Lector QR
@@ -685,6 +1093,21 @@ const Admin = () => {
           <Button variant="outline">
             <Users className="mr-2 h-4 w-4" />
             Check-in
+          </Button>
+          <Button
+            className="button-gradient shadow-button"
+            onClick={() => {
+              if (isReadOnlyMode) {
+                showReadOnlyWarning();
+                return;
+              }
+              setIsCreateOpen(true);
+            }}
+            disabled={isReadOnlyMode}
+            title={readOnlyTooltip}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Nueva inscripción
           </Button>
         </div>
 
@@ -829,7 +1252,8 @@ const Admin = () => {
                                 type="button"
                                 size="sm"
                                 className="flex items-center gap-1"
-                                disabled={resultSaving[participant.id]}
+                                disabled={isReadOnlyMode || resultSaving[participant.id]}
+                                title={readOnlyTooltip}
                                 onClick={() => handleResultSave(participant)}
                               >
                                 <Clock className="h-4 w-4" />
@@ -894,6 +1318,8 @@ const Admin = () => {
                               variant="outline"
                               className="gap-1"
                               onClick={() => openEditDialog(participant)}
+                              disabled={isReadOnlyMode}
+                              title={readOnlyTooltip}
                             >
                               <Pencil className="h-3.5 w-3.5" />
                               Editar
@@ -903,7 +1329,8 @@ const Admin = () => {
                               variant="outline"
                               className={participant.checkedInAt ? 'bg-lake-green/10 text-lake-green' : ''}
                               onClick={() => handleCheckIn(participant)}
-                              disabled={participant.status === 'rejected' || (participant.status === 'pending' && !participant.checkedInAt)}
+                              disabled={isReadOnlyMode || participant.status === 'rejected'}
+                              title={readOnlyTooltip}
                             >
                               {participant.checkedInAt ? 'Revertir' : 'Check-in'}
                             </Button>
@@ -914,6 +1341,8 @@ const Admin = () => {
                                   variant="outline"
                                   className="text-lake-green"
                                   onClick={() => handleStatusChange(participant.id, 'validated')}
+                                  disabled={isReadOnlyMode}
+                                  title={readOnlyTooltip}
                                 >
                                   ✓
                                 </Button>
@@ -922,6 +1351,8 @@ const Admin = () => {
                                   variant="outline"
                                   className="text-destructive"
                                   onClick={() => handleStatusChange(participant.id, 'rejected')}
+                                  disabled={isReadOnlyMode}
+                                  title={readOnlyTooltip}
                                 >
                                   ✗
                                 </Button>
@@ -931,6 +1362,8 @@ const Admin = () => {
                                 size="sm"
                                 variant="outline"
                                 onClick={() => handleStatusChange(participant.id, 'pending')}
+                                disabled={isReadOnlyMode}
+                                title={readOnlyTooltip}
                               >
                                 Pend.
                               </Button>
@@ -947,84 +1380,305 @@ const Admin = () => {
         </Card>
 
         <Dialog open={isEditOpen} onOpenChange={(open) => (open ? setIsEditOpen(true) : closeEditDialog())}>
-          <DialogContent className="max-w-3xl">
-            <DialogHeader>
-              <DialogTitle>Editar inscripción</DialogTitle>
-              <DialogDescription>
-                Ajusta los datos del participante para corregir información suministrada por error.
-              </DialogDescription>
-            </DialogHeader>
+          <DialogContent className="w-[95vw] max-w-4xl max-h-[85vh] p-0">
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                handleEditSave();
+              }}
+              className="flex h-full flex-col"
+            >
+              <div className="flex-1 overflow-y-auto px-4 py-5 md:px-6 md:py-6 space-y-5">
+                <DialogHeader className="space-y-1.5">
+                  <DialogTitle>Editar inscripción</DialogTitle>
+                  <DialogDescription>
+                    Ajusta los datos del participante para corregir información suministrada por error.
+                  </DialogDescription>
+                </DialogHeader>
 
-            {editParticipant && (
-              <div className="grid gap-6">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Nombre completo</Label>
-                    <Input
-                      value={editForm.nombre ?? ''}
-                      onChange={(e) => handleEditFieldChange('nombre', e.target.value)}
-                      required
-                    />
+                {editParticipant && (
+                  <div className="grid gap-4">
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      <div className="space-y-1.5 md:col-span-2 xl:col-span-2">
+                        <Label>Nombre completo</Label>
+                        <Input
+                          value={editForm.nombre ?? ''}
+                          onChange={(e) => handleEditFieldChange('nombre', e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>DNI (13 dígitos)</Label>
+                        <Input
+                          value={editForm.dni ?? ''}
+                          onChange={(e) => handleEditFieldChange('dni', e.target.value.replace(/\D/g, '').slice(0, 13))}
+                          maxLength={13}
+                          inputMode="numeric"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Dorsal</Label>
+                        <Input
+                          value={editForm.dorsal ?? ''}
+                          onChange={(e) => handleEditFieldChange('dorsal', e.target.value.replace(/\D/g, '').slice(0, 3))}
+                          maxLength={3}
+                          inputMode="numeric"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Fecha de nacimiento</Label>
+                        <Input
+                          type="date"
+                          value={editForm.nacimiento ?? ''}
+                          onChange={(e) => handleEditFieldChange('nacimiento', e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1.5 md:col-span-2 xl:col-span-3">
+                        <Label>Email</Label>
+                        <Input
+                          type="email"
+                          value={editForm.email ?? ''}
+                          onChange={(e) => handleEditFieldChange('email', e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Teléfono</Label>
+                        <Input
+                          value={editForm.telefono ?? ''}
+                          onChange={(e) => handleEditFieldChange('telefono', e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1.5 md:col-span-2 xl:col-span-2">
+                        <Label>Club / Equipo</Label>
+                        <Input
+                          value={editForm.club ?? ''}
+                          onChange={(e) => handleEditFieldChange('club', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Distancia</Label>
+                        <Select
+                          value={editForm.distancia ?? '800m'}
+                          onValueChange={(value) => handleEditFieldChange('distancia', value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecciona distancia" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="800m">800 metros</SelectItem>
+                            <SelectItem value="2km">2 kilómetros</SelectItem>
+                            <SelectItem value="5km">5 kilómetros</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Sexo</Label>
+                        <Select
+                          value={editForm.sexo ?? 'M'}
+                          onValueChange={(value) => handleEditFieldChange('sexo', value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecciona sexo" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="F">Femenino</SelectItem>
+                            <SelectItem value="M">Masculino</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Categoría asignada</Label>
+                        <Input value={editForm.categoria ?? ''} readOnly className="bg-muted" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Talla de camisa</Label>
+                        <Input
+                          value={editForm.tallaCamisa ?? ''}
+                          onChange={(e) => handleEditFieldChange('tallaCamisa', e.target.value)}
+                          list="shirt-sizes"
+                        />
+                        <datalist id="shirt-sizes">
+                          {SHIRT_SIZES.map((size) => (
+                            <option key={size} value={size} />
+                          ))}
+                        </datalist>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Contacto de emergencia</Label>
+                        <Input
+                          value={editForm.emergenciaNombre ?? ''}
+                          onChange={(e) => handleEditFieldChange('emergenciaNombre', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Teléfono de emergencia</Label>
+                        <Input
+                          value={editForm.emergenciaTel ?? ''}
+                          onChange={(e) => handleEditFieldChange('emergenciaTel', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1.5 md:col-span-2 xl:col-span-3">
+                        <Label>Condición médica</Label>
+                        <Input
+                          value={editForm.medico ?? ''}
+                          onChange={(e) => handleEditFieldChange('medico', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Banco / Plataforma</Label>
+                        <Input
+                          value={editForm.banco ?? ''}
+                          onChange={(e) => handleEditFieldChange('banco', e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Monto (L)</Label>
+                        <Input
+                          value={editForm.monto ?? ''}
+                          onChange={(e) => handleEditFieldChange('monto', e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1.5 md:col-span-2 xl:col-span-3">
+                        <Label>Número de referencia</Label>
+                        <Input
+                          value={editForm.referencia ?? ''}
+                          onChange={(e) => handleEditFieldChange('referencia', e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1.5 md:col-span-2 xl:col-span-3">
+                        <Label>Tiempo oficial (mm:ss, hh:mm:ss, NT/NS/DNS/DNF)</Label>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <Input
+                            value={resultEdit}
+                            onChange={(e) => setResultEdit(e.target.value)}
+                            placeholder="mm:ss"
+                            className="sm:flex-1"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setResultEdit('')}
+                          >
+                            Limpiar
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Usa NT (No Time), NS (No Show), DNS o DNF para casos especiales.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-md border border-dashed border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+                      <p><strong>Dorsal:</strong> #{editParticipant.dorsal}</p>
+                      <p><strong>Registrado:</strong> {formatDateTime(editParticipant.createdAt)}</p>
+                      {editParticipant.comprobanteUrl && (
+                        <p>
+                          <strong>Comprobante:</strong>{' '}
+                          <a
+                            href={editParticipant.comprobanteUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary underline"
+                          >
+                            Ver comprobante
+                          </a>
+                        </p>
+                      )}
+                    </div>
+
+                    {editError && <p className="text-sm text-destructive">{editError}</p>}
                   </div>
-                  <div className="space-y-2">
-                    <Label>DNI (13 dígitos)</Label>
+                )}
+              </div>
+
+              <DialogFooter className="border-t border-border px-4 py-4 md:px-6">
+                <Button variant="outline" type="button" onClick={closeEditDialog} disabled={isSavingEdit}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={isSavingEdit || isReadOnlyMode} title={readOnlyTooltip}>
+                  {isSavingEdit ? 'Guardando…' : 'Guardar cambios'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isCreateOpen} onOpenChange={(open) => {
+          if (!open) {
+            setIsCreateOpen(false);
+            setCreateError('');
+            createForm.reset();
+          } else {
+            setIsCreateOpen(true);
+          }
+        }}>
+          <DialogContent className="w-[95vw] max-w-4xl max-h-[85vh] p-0">
+            <form onSubmit={handleCreateSubmit} className="flex h-full flex-col">
+              <div className="flex-1 overflow-y-auto px-4 py-5 md:px-6 md:py-6 space-y-5">
+                <DialogHeader className="space-y-1.5">
+                  <DialogTitle>Nueva inscripción manual</DialogTitle>
+                  <DialogDescription>
+                    {manualCreateDescription}
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <div className="space-y-1.5 md:col-span-2 xl:col-span-2">
+                    <Label htmlFor="create-nombre">Nombre completo *</Label>
+                    <Input id="create-nombre" {...createForm.register('nombre')} />
+                    {createForm.formState.errors.nombre && (
+                      <p className="text-xs text-destructive">{createForm.formState.errors.nombre.message}</p>
+                    )}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="create-dni">DNI (13 dígitos) *</Label>
                     <Input
-                      value={editForm.dni ?? ''}
-                      onChange={(e) => handleEditFieldChange('dni', e.target.value.replace(/\D/g, '').slice(0, 13))}
+                      id="create-dni"
                       maxLength={13}
                       inputMode="numeric"
-                      required
+                      {...createForm.register('dni')}
+                      onChange={(e) => createForm.setValue('dni', e.target.value.replace(/\D/g, '').slice(0, 13))}
                     />
+                    {createForm.formState.errors.dni && (
+                      <p className="text-xs text-destructive">{createForm.formState.errors.dni.message}</p>
+                    )}
                   </div>
-                  <div className="space-y-2">
-                    <Label>Dorsal</Label>
-                    <Input
-                      value={editForm.dorsal ?? ''}
-                      onChange={(e) => handleEditFieldChange('dorsal', e.target.value.replace(/\D/g, '').slice(0, 3))}
-                      maxLength={3}
-                      inputMode="numeric"
-                      required
-                    />
+                  <div className="space-y-1.5">
+                    <Label htmlFor="create-nacimiento">Fecha de nacimiento *</Label>
+                    <Input type="date" id="create-nacimiento" {...createForm.register('nacimiento')} />
+                    {createForm.formState.errors.nacimiento && (
+                      <p className="text-xs text-destructive">{createForm.formState.errors.nacimiento.message}</p>
+                    )}
                   </div>
-                  <div className="space-y-2">
-                    <Label>Fecha de nacimiento</Label>
-                    <Input
-                      type="date"
-                      value={editForm.nacimiento ?? ''}
-                      onChange={(e) => handleEditFieldChange('nacimiento', e.target.value)}
-                      required
-                    />
+                  <div className="space-y-1.5 md:col-span-2 xl:col-span-3">
+                    <Label htmlFor="create-email">Email *</Label>
+                    <Input type="email" id="create-email" {...createForm.register('email')} />
+                    {createForm.formState.errors.email && (
+                      <p className="text-xs text-destructive">{createForm.formState.errors.email.message}</p>
+                    )}
                   </div>
-                  <div className="space-y-2">
-                    <Label>Email</Label>
-                    <Input
-                      type="email"
-                      value={editForm.email ?? ''}
-                      onChange={(e) => handleEditFieldChange('email', e.target.value)}
-                      required
-                    />
+                  <div className="space-y-1.5">
+                    <Label htmlFor="create-telefono">Teléfono *</Label>
+                    <Input id="create-telefono" {...createForm.register('telefono')} />
+                    {createForm.formState.errors.telefono && (
+                      <p className="text-xs text-destructive">{createForm.formState.errors.telefono.message}</p>
+                    )}
                   </div>
-                  <div className="space-y-2">
-                    <Label>Teléfono</Label>
-                    <Input
-                      value={editForm.telefono ?? ''}
-                      onChange={(e) => handleEditFieldChange('telefono', e.target.value)}
-                      required
-                    />
+                  <div className="space-y-1.5 md:col-span-2 xl:col-span-2">
+                    <Label htmlFor="create-club">Club / Equipo</Label>
+                    <Input id="create-club" {...createForm.register('club')} />
                   </div>
-                  <div className="space-y-2">
-                    <Label>Club / Equipo</Label>
-                    <Input
-                      value={editForm.club ?? ''}
-                      onChange={(e) => handleEditFieldChange('club', e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Distancia</Label>
-                    <Select
-                      value={editForm.distancia ?? '800m'}
-                      onValueChange={(value) => handleEditFieldChange('distancia', value)}
-                    >
+                  <div className="space-y-1.5">
+                    <Label>Distancia *</Label>
+                    <Select value={createForm.watch('distancia')} onValueChange={(value) => createForm.setValue('distancia', value)}>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecciona distancia" />
                       </SelectTrigger>
@@ -1034,13 +1688,13 @@ const Admin = () => {
                         <SelectItem value="5km">5 kilómetros</SelectItem>
                       </SelectContent>
                     </Select>
+                    {createForm.formState.errors.distancia && (
+                      <p className="text-xs text-destructive">{createForm.formState.errors.distancia.message}</p>
+                    )}
                   </div>
-                  <div className="space-y-2">
-                    <Label>Sexo</Label>
-                    <Select
-                      value={editForm.sexo ?? 'M'}
-                      onValueChange={(value) => handleEditFieldChange('sexo', value)}
-                    >
+                  <div className="space-y-1.5">
+                    <Label>Sexo *</Label>
+                    <Select value={createForm.watch('sexo')} onValueChange={(value) => createForm.setValue('sexo', value)}>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecciona sexo" />
                       </SelectTrigger>
@@ -1049,122 +1703,75 @@ const Admin = () => {
                         <SelectItem value="M">Masculino</SelectItem>
                       </SelectContent>
                     </Select>
+                    {createForm.formState.errors.sexo && (
+                      <p className="text-xs text-destructive">{createForm.formState.errors.sexo.message}</p>
+                    )}
                   </div>
-                  <div className="space-y-2">
-                    <Label>Categoría asignada</Label>
-                    <Input value={editForm.categoria ?? ''} readOnly className="bg-muted" />
-                  </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <Label>Talla de camisa</Label>
-                    <Input
-                      value={editForm.tallaCamisa ?? ''}
-                      onChange={(e) => handleEditFieldChange('tallaCamisa', e.target.value)}
-                      list="shirt-sizes"
-                    />
-                    <datalist id="shirt-sizes">
-                      {SHIRT_SIZES.map((size) => (
-                        <option key={size} value={size} />
-                      ))}
-                    </datalist>
+                    <Input list="shirt-sizes" {...createForm.register('tallaCamisa')} />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <Label>Contacto de emergencia</Label>
-                    <Input
-                      value={editForm.emergenciaNombre ?? ''}
-                      onChange={(e) => handleEditFieldChange('emergenciaNombre', e.target.value)}
-                    />
+                    <Input {...createForm.register('emergenciaNombre')} />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <Label>Teléfono de emergencia</Label>
-                    <Input
-                      value={editForm.emergenciaTel ?? ''}
-                      onChange={(e) => handleEditFieldChange('emergenciaTel', e.target.value)}
-                    />
+                    <Input {...createForm.register('emergenciaTel')} />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1.5 md:col-span-2 xl:col-span-3">
                     <Label>Condición médica</Label>
-                    <Input
-                      value={editForm.medico ?? ''}
-                      onChange={(e) => handleEditFieldChange('medico', e.target.value)}
-                    />
+                    <Input {...createForm.register('medico')} />
                   </div>
-                  <div className="space-y-2">
-                    <Label>Banco / Plataforma</Label>
-                    <Input
-                      value={editForm.banco ?? ''}
-                      onChange={(e) => handleEditFieldChange('banco', e.target.value)}
-                      required
-                    />
+                  <div className="space-y-1.5">
+                    <Label>Banco / Plataforma *</Label>
+                    <Input {...createForm.register('banco')} />
+                    {createForm.formState.errors.banco && (
+                      <p className="text-xs text-destructive">{createForm.formState.errors.banco.message}</p>
+                    )}
                   </div>
-                  <div className="space-y-2">
-                    <Label>Monto (L)</Label>
-                    <Input
-                      value={editForm.monto ?? ''}
-                      onChange={(e) => handleEditFieldChange('monto', e.target.value)}
-                      required
-                    />
+                  <div className="space-y-1.5">
+                    <Label>Monto (L) *</Label>
+                    <Input {...createForm.register('monto')} />
+                    {createForm.formState.errors.monto && (
+                      <p className="text-xs text-destructive">{createForm.formState.errors.monto.message}</p>
+                    )}
                   </div>
-                  <div className="space-y-2">
-                    <Label>Número de referencia</Label>
-                    <Input
-                      value={editForm.referencia ?? ''}
-                      onChange={(e) => handleEditFieldChange('referencia', e.target.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2 md:col-span-2">
-                    <Label>Tiempo oficial (mm:ss, hh:mm:ss, NT/NS/DNS/DNF)</Label>
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <Input
-                        value={resultEdit}
-                        onChange={(e) => setResultEdit(e.target.value)}
-                        placeholder="mm:ss"
-                        className="sm:flex-1"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setResultEdit('')}
-                      >
-                        Limpiar
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Usa NT (No Time), NS (No Show), DNS o DNF para casos especiales.
-                    </p>
+                  <div className="space-y-1.5 md:col-span-2 xl:col-span-3">
+                    <Label>Número de referencia *</Label>
+                    <Input {...createForm.register('referencia')} />
+                    {createForm.formState.errors.referencia && (
+                      <p className="text-xs text-destructive">{createForm.formState.errors.referencia.message}</p>
+                    )}
                   </div>
                 </div>
 
-                <div className="rounded-md border border-dashed border-border bg-muted/40 p-4 text-sm text-muted-foreground">
-                  <p><strong>Dorsal:</strong> #{editParticipant.dorsal}</p>
-                  <p><strong>Registrado:</strong> {formatDateTime(editParticipant.createdAt)}</p>
-                  {editParticipant.comprobanteUrl && (
-                    <p>
-                      <strong>Comprobante:</strong>{' '}
-                      <a
-                        href={editParticipant.comprobanteUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary underline"
-                      >
-                        Ver comprobante
-                      </a>
-                    </p>
-                  )}
-                </div>
-
-                {editError && <p className="text-sm text-destructive">{editError}</p>}
+                {createError && (
+                  <div className="flex items-center gap-2 text-sm text-destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>{createError}</span>
+                  </div>
+                )}
               </div>
-            )}
 
-            <DialogFooter>
-              <Button variant="outline" type="button" onClick={closeEditDialog} disabled={isSavingEdit}>
-                Cancelar
-              </Button>
-              <Button type="button" onClick={handleEditSave} disabled={isSavingEdit}>
-                {isSavingEdit ? 'Guardando…' : 'Guardar cambios'}
-              </Button>
-            </DialogFooter>
+              <DialogFooter className="border-t border-border px-4 py-4 md:px-6">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsCreateOpen(false);
+                    setCreateError('');
+                    createForm.reset();
+                  }}
+                  disabled={isSavingCreate}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={isSavingCreate || isReadOnlyMode} title={readOnlyTooltip}>
+                  {isSavingCreate ? 'Guardando…' : 'Crear inscripción'}
+                </Button>
+              </DialogFooter>
+            </form>
           </DialogContent>
         </Dialog>
 

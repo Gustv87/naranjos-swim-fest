@@ -100,8 +100,8 @@ interface RegistrationContextValue {
     pending: number;
     validated: number;
     rejected: number;
-    remaining: number;
-    max: number;
+    remaining: number | null;
+    max: number | null;
     capacityFull: boolean;
     checkedIn: number;
   };
@@ -114,7 +114,7 @@ interface RegistrationContextValue {
   updateRegistrationData: (id: string, updates: RegistrationEditableFields) => Promise<void>;
 }
 
-const MAX_PARTICIPANTS = 100;
+const CAPACITY_LIMIT: number | null = null;
 const COLLECTION_NAME = 'registrations';
 
 const RegistrationContext = createContext<RegistrationContextValue | undefined>(undefined);
@@ -216,7 +216,7 @@ const getNextDorsal = (registrations: Registration[]) => {
     .filter((value) => Number.isFinite(value))
     .sort((a, b) => b - a)[0] ?? 0;
 
-  const next = Math.min(lastNumber + 1, MAX_PARTICIPANTS);
+  const next = lastNumber + 1;
   return String(next).padStart(3, '0');
 };
 
@@ -261,7 +261,7 @@ export const RegistrationProvider = ({ children }: PropsWithChildren) => {
   }, []);
 
   const addRegistration = useCallback(async (data: RegistrationInput) => {
-    if (registrations.length >= MAX_PARTICIPANTS) {
+    if (typeof CAPACITY_LIMIT === 'number' && registrations.length >= CAPACITY_LIMIT) {
       throw new Error('No hay cupos disponibles');
     }
 
@@ -592,7 +592,8 @@ export const RegistrationProvider = ({ children }: PropsWithChildren) => {
     const validated = registrations.filter((item) => item.status === 'validated').length;
     const rejected = registrations.filter((item) => item.status === 'rejected').length;
     const checkedIn = registrations.filter((item) => item.checkedInAt !== null).length;
-    const remaining = Math.max(MAX_PARTICIPANTS - total, 0);
+    const remaining = typeof CAPACITY_LIMIT === 'number' ? Math.max(CAPACITY_LIMIT - total, 0) : null;
+    const capacityFull = typeof CAPACITY_LIMIT === 'number' ? total >= CAPACITY_LIMIT : false;
 
     return {
       total,
@@ -600,8 +601,8 @@ export const RegistrationProvider = ({ children }: PropsWithChildren) => {
       validated,
       rejected,
       remaining,
-      max: MAX_PARTICIPANTS,
-      capacityFull: total >= MAX_PARTICIPANTS,
+      max: CAPACITY_LIMIT,
+      capacityFull,
       checkedIn,
     };
   }, [registrations]);

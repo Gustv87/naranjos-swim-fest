@@ -30,7 +30,7 @@ const Inscripcion = () => {
 
   const currentParticipants = stats.total;
   const maxParticipants = stats.max;
-  const isRegistrationOpen = new Date() < new Date('2025-10-07T23:59:59-06:00');
+  const isRegistrationOpen = new Date() < new Date('2025-10-08T23:59:59-06:00');
   const isCapacityFull = stats.capacityFull;
   const isCapacityDataLoading = isRegistrationsLoading;
 
@@ -412,7 +412,7 @@ const Inscripcion = () => {
               <AlertCircle className="h-16 w-16 text-destructive mx-auto mb-4" />
               <CardTitle className="text-2xl">Inscripciones Cerradas</CardTitle>
               <CardDescription className="text-lg">
-                El período de inscripciones terminó el 7 de octubre de 2025
+                El período de inscripciones terminó el 8 de octubre de 2025
               </CardDescription>
             </CardHeader>
             <CardContent>

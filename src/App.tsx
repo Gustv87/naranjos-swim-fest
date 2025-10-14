@@ -44,6 +44,8 @@ const ScrollToTop = () => {
   return null;
 };
 
+const adminEnabled = import.meta.env.DEV || import.meta.env.VITE_ENABLE_ADMIN === 'true';
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -58,7 +60,11 @@ const App = () => (
             <Route path="/inscripcion" element={<Inscripcion />} />
             <Route path="/reglamento" element={<Reglamento />} />
             <Route path="/resultados" element={<Resultados />} />
-            <Route path="/admin" element={<Admin />} />
+            {adminEnabled ? (
+              <Route path="/admin" element={<Admin />} />
+            ) : (
+              <Route path="/admin" element={<NotFound />} />
+            )}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
