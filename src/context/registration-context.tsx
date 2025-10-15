@@ -347,6 +347,7 @@ export const RegistrationProvider = ({ children }: PropsWithChildren) => {
         id: docRef.id,
         ...registro,
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       } as Registration;
     } catch (error) {
       if (storageRef) {
@@ -435,7 +436,7 @@ export const RegistrationProvider = ({ children }: PropsWithChildren) => {
     });
   }, []);
 
-  const updateRegistrationData = useCallback(async (id: string, updates: RegistrationEditableFields, actor: string) => {
+  const updateRegistrationData = useCallback(async (id: string, updates: RegistrationEditableFields, actor?: string) => {
     const documentRef = doc(db, COLLECTION_NAME, id);
     const existing = registrations.find((participant) => participant.id === id);
 
@@ -582,7 +583,7 @@ export const RegistrationProvider = ({ children }: PropsWithChildren) => {
     await updateDoc(documentRef, {
       ...sanitized,
       updatedAt: serverTimestamp(),
-      updatedBy: actor,
+      updatedBy: actor || null,
     });
   }, [registrations]);
 

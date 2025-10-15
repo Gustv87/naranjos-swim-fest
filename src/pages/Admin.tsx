@@ -739,7 +739,7 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
         }
       }
 
-      await updateRegistrationData(editParticipant.id, editForm, adminEmail || 'admin');
+      await updateRegistrationData(editParticipant.id, editForm);
 
       const trimmed = resultEdit.trim();
       const currentResult = editParticipant.resultTime ?? '';
@@ -1678,7 +1678,7 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
                   </div>
                   <div className="space-y-1.5">
                     <Label>Distancia *</Label>
-                    <Select value={createForm.watch('distancia')} onValueChange={(value) => createForm.setValue('distancia', value)}>
+                    <Select value={createForm.watch('distancia')} onValueChange={(value) => createForm.setValue('distancia', value as '800m' | '2km' | '5km')}>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecciona distancia" />
                       </SelectTrigger>
@@ -1694,7 +1694,7 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
                   </div>
                   <div className="space-y-1.5">
                     <Label>Sexo *</Label>
-                    <Select value={createForm.watch('sexo')} onValueChange={(value) => createForm.setValue('sexo', value)}>
+                    <Select value={createForm.watch('sexo')} onValueChange={(value) => createForm.setValue('sexo', value as 'F' | 'M')}>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecciona sexo" />
                       </SelectTrigger>
