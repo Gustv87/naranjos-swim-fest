@@ -12,15 +12,15 @@ import heroImageWebp from '@/assets/lago-yojoa-hero.webp';
 import { useRegistrations } from '@/context/registration-context';
 
 const Index = () => {
-  const eventDate = new Date('2025-10-12T06:00:00-06:00');
-  const { stats, isLoading: isRegistrationsLoading } = useRegistrations();
-  const registrationOpeningDate = new Date('2025-08-01T00:00:00-06:00');
-  const registrationCloseDate = new Date('2025-10-08T23:59:59-06:00');
+  const { stats, activeEvent, isLoading: isRegistrationsLoading } = useRegistrations();
+  const eventDate = new Date(activeEvent.dateTime);
+  const registrationOpeningDate = new Date(activeEvent.registrationOpenDateTime);
+  const registrationCloseDate = new Date(activeEvent.registrationCloseDateTime);
   const now = new Date();
   const isRegistrationOpen = now >= registrationOpeningDate && now <= registrationCloseDate;
   const registrationStatusLabel = (() => {
     if (now < registrationOpeningDate) return 'Las inscripciones abrirán próximamente.';
-    if (now > registrationCloseDate) return 'Las inscripciones cerraron el 8 de octubre de 2025 a las 23:59:59 (UTC-06).';
+    if (now > registrationCloseDate) return 'Las inscripciones cerraron el 7 de agosto de 2026 a las 23:59:59 (UTC-06).';
     return 'Proceso de inscripción en curso.';
   })();
   const isCapacityFull = stats.capacityFull;
@@ -32,29 +32,8 @@ const Index = () => {
     return 'Ver formulario de inscripción';
   })();
 
-  const distances = [
-    {
-      distance: '800m',
-      categories: ['Infantiles A (9-10)', 'Infantiles B (11-12)', 'Juveniles A (13-14)', 'Masters'],
-      description: 'Ideal para principiantes y nadadores jóvenes',
-      icon: '🏊‍♀️',
-      color: 'from-primary/20 to-primary/5'
-    },
-    {
-      distance: '2km',
-      categories: ['Juveniles B (15-17)', '20-30', '30-40', '40+'],
-      description: 'Distancia intermedia para nadadores experimentados',
-      icon: '🏊‍♂️',
-      color: 'from-accent/20 to-accent/5'
-    },
-    {
-      distance: '5km',
-      categories: ['Juveniles B (15-17)', '20-30', '30-40', '40+'],
-      description: 'Desafío de resistencia para atletas avanzados',
-      icon: '🏆',
-      color: 'from-primary/30 to-primary/10'
-    }
-  ];
+  const formattedEventDate = eventDate.toLocaleDateString('es-HN', { day: 'numeric', month: 'long', year: 'numeric' });
+  const formattedCloseDate = registrationCloseDate.toLocaleDateString('es-HN', { day: 'numeric', month: 'long', year: 'numeric' });
 
   const features = [
     {
@@ -102,7 +81,7 @@ const Index = () => {
             <div className="text-center text-white max-w-4xl mx-auto space-y-8 animate-fade-in">
               <Badge variant="secondary" className="mx-auto bg-white/20 text-white border-white/30 backdrop-blur-sm px-4 py-2 text-base font-medium">
                 <Calendar className="inline h-4 w-4 mr-2" />
-                12 de Octubre 2025
+                {formattedEventDate}
               </Badge>
               
               <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold tracking-tight leading-tight">
@@ -204,17 +183,17 @@ const Index = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {distances.map((item, index) => (
+              {activeEvent.distances.map((item, index) => (
                 <Card 
-                  key={index} 
+                  key={item.value} 
                   className={`card-gradient shadow-card hover:shadow-button transition-smooth hover-scale overflow-hidden relative`}
                   style={{ animationDelay: `${index * 0.15}s` }}
                 >
-                  <div className={`absolute inset-0 bg-gradient-to-br ${item.color} opacity-50`} />
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-accent/5 opacity-50" />
                   <CardHeader className="text-center relative z-10">
-                    <div className="text-5xl mb-4">{item.icon}</div>
-                    <CardTitle className="text-4xl font-bold text-primary mb-2">{item.distance}</CardTitle>
-                    <p className="text-sm text-muted-foreground font-medium">{item.description}</p>
+                    <div className="text-5xl mb-4">🏊‍♂️</div>
+                    <CardTitle className="text-4xl font-bold text-primary mb-2">{item.value}</CardTitle>
+                    <p className="text-sm text-muted-foreground font-medium">{item.label}</p>
                   </CardHeader>
                   <CardContent className="relative z-10">
                     <div className="space-y-3">
@@ -222,7 +201,7 @@ const Index = () => {
                       {item.categories.map((category, catIndex) => (
                         <div key={catIndex} className="flex items-center gap-2">
                           <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0" />
-                          <span className="text-sm text-foreground">{category}</span>
+                          <span className="text-sm text-foreground">{category.label}</span>
                         </div>
                       ))}
                     </div>
@@ -260,7 +239,7 @@ const Index = () => {
                     Un Encuentro Inolvidable
                   </h2>
                   <p className="text-lg text-muted-foreground leading-relaxed">
-                    El <strong className="text-foreground">Encuentro de Aguas Abiertas Los Naranjos</strong> es organizado por 
+                    <strong className="text-foreground">{activeEvent.name}</strong> es organizado por 
                     los Entrenadores de Natación de San Pedro Sula, ofreciendo una experiencia única 
                     en las cristalinas aguas del Lago de Yojoa, el lago natural más grande de Honduras.
                   </p>
@@ -270,22 +249,22 @@ const Index = () => {
                   <div className="bg-card p-4 rounded-lg border shadow-sm">
                     <Calendar className="h-6 w-6 text-primary mb-2" />
                     <p className="text-sm font-semibold text-foreground">Fecha del Evento</p>
-                    <p className="text-sm text-muted-foreground">12 de octubre de 2025</p>
+                    <p className="text-sm text-muted-foreground">{formattedEventDate}</p>
                   </div>
                   <div className="bg-card p-4 rounded-lg border shadow-sm">
                     <MapPin className="h-6 w-6 text-primary mb-2" />
                     <p className="text-sm font-semibold text-foreground">Ubicación</p>
-                    <p className="text-sm text-muted-foreground">Lago de Yojoa, Los Naranjos</p>
+                    <p className="text-sm text-muted-foreground">{activeEvent.locationShort}</p>
                   </div>
                   <div className="bg-card p-4 rounded-lg border shadow-sm">
                     <Users className="h-6 w-6 text-primary mb-2" />
-                    <p className="text-sm font-semibold text-foreground">Cupo Limitado</p>
-                    <p className="text-sm text-muted-foreground">100 participantes</p>
+                    <p className="text-sm font-semibold text-foreground">Inscripción Abierta</p>
+                    <p className="text-sm text-muted-foreground">Registro en línea disponible</p>
                   </div>
                   <div className="bg-card p-4 rounded-lg border shadow-sm">
                     <FileText className="h-6 w-6 text-primary mb-2" />
                     <p className="text-sm font-semibold text-foreground">Inscripción</p>
-                    <p className="text-sm text-muted-foreground">L. 300.00</p>
+                    <p className="text-sm text-muted-foreground">L. {activeEvent.price}</p>
                   </div>
                 </div>
 
@@ -321,15 +300,11 @@ const Index = () => {
                       <ul className="space-y-2 text-sm text-muted-foreground">
                         <li className="flex items-start gap-2">
                           <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                          <span>Cierre de inscripciones: <strong className="text-foreground">7 de octubre, 2025</strong></span>
+                          <span>Cierre de inscripciones: <strong className="text-foreground">{formattedCloseDate}</strong></span>
                         </li>
                         <li className="flex items-start gap-2">
                           <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                          <span>Entrega de kits: <strong className="text-foreground">11 de octubre</strong> en Villa Santa Martha</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                          <span>Día del evento: <strong className="text-foreground">12 de octubre, 2025</strong></span>
+                          <span>Día del evento: <strong className="text-foreground">{formattedEventDate}</strong></span>
                         </li>
                       </ul>
                     </div>
@@ -357,12 +332,10 @@ const Index = () => {
                   <CardContent className="p-6">
                     <h4 className="font-bold text-lg mb-2">💡 Información de Pago</h4>
                     <p className="text-sm opacity-90 mb-3">
-                      Deposita <strong>L. 300.00</strong> en:
+                      Deposita <strong>L. {activeEvent.price}</strong>:
                     </p>
                     <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 space-y-1 text-sm">
-                      <p><strong>Banco:</strong> BAC Honduras</p>
-                      <p><strong>Cuenta:</strong> 743657881</p>
-                      <p><strong>A nombre de:</strong> Carlos René Cerrato Osorio</p>
+                      <p>{activeEvent.paymentInfo}</p>
                     </div>
                   </CardContent>
                 </Card>

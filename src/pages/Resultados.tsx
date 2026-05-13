@@ -7,12 +7,6 @@ import { useMemo, useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 
-const distanceLabels: Record<string, string> = {
-  '800m': '800 metros',
-  '2km': '2 kilómetros',
-  '5km': '5 kilómetros',
-};
-
 const SPECIAL_TOKENS = ['NT', 'NS', 'DNS', 'DNF'];
 
 const formatTime = (time: string | null) => {
@@ -28,7 +22,7 @@ const ALL_CATEGORIES_VALUE = '__all__';
 const ALL_DISTANCES_VALUE = '__all_distances__';
 
 const Resultados = () => {
-  const { registrations, isLoading } = useRegistrations();
+  const { registrations, activeEvent, isLoading } = useRegistrations();
   const [categoryFilter, setCategoryFilter] = useState<string>(ALL_CATEGORIES_VALUE);
   const [distanceFilter, setDistanceFilter] = useState<string>(ALL_DISTANCES_VALUE);
 
@@ -43,7 +37,7 @@ const Resultados = () => {
   }, [registrations]);
 
   const groupedByDistance = useMemo(() => {
-    const allDistances = ['800m', '2km', '5km'];
+    const allDistances = activeEvent.distances.map((distance) => distance.value);
     const distances = distanceFilter === ALL_DISTANCES_VALUE ? allDistances : allDistances.filter((distance) => distance === distanceFilter);
 
     return distances.map((distance) => {
@@ -64,7 +58,7 @@ const Resultados = () => {
         participants,
       };
     });
-  }, [registrations, categoryFilter]);
+  }, [activeEvent.distances, registrations, categoryFilter, distanceFilter]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -111,9 +105,9 @@ const Resultados = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value={ALL_DISTANCES_VALUE}>Todas</SelectItem>
-                      {['800m', '2km', '5km'].map((distance) => (
-                        <SelectItem key={distance} value={distance}>
-                          {distanceLabels[distance] ?? distance}
+                      {activeEvent.distances.map((distance) => (
+                        <SelectItem key={distance.value} value={distance.value}>
+                          {distance.label}
                         </SelectItem>
                       ))}
                     </SelectContent>

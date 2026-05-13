@@ -1,6 +1,6 @@
 # Encuentro de Aguas Abiertas Los Naranjos
 
-Sitio oficial del evento de natación en aguas abiertas “Los Naranjos 2025”. Permite difundir información del encuentro, gestionar inscripciones de atletas, validar pagos, registrar tiempos oficiales y publicar resultados en tiempo real.
+Sitio oficial del evento de natación en aguas abiertas “Segundo Cruce del Lago 2026”. Permite difundir información del encuentro, gestionar inscripciones de atletas, validar pagos, registrar tiempos oficiales y publicar resultados en tiempo real.
 
 ## Características principales
 

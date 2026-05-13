@@ -8,12 +8,20 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { CapacityIndicator } from '@/components/ui/capacity-indicator';
 import { useRegistrations } from '@/context/registration-context';
 import { useEffect, useState, type ChangeEvent } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Upload, CheckCircle2, AlertCircle } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const MAX_COMPROBANTE_SIZE_MB = 15;
 const MAX_COMPROBANTE_SIZE_BYTES = MAX_COMPROBANTE_SIZE_MB * 1024 * 1024;
@@ -24,13 +32,22 @@ const Inscripcion = () => {
   }, []);
 
   const { toast } = useToast();
-  const { addRegistration, stats, isLoading: isRegistrationsLoading } = useRegistrations();
+  const navigate = useNavigate();
+  const { addRegistration, stats, activeEvent, isLoading: isRegistrationsLoading } = useRegistrations();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [acceptedRules, setAcceptedRules] = useState(false);
+  const [successRegistration, setSuccessRegistration] = useState<{
+    dorsal: string;
+    email: string;
+    eventName: string;
+  } | null>(null);
 
   const currentParticipants = stats.total;
   const maxParticipants = stats.max;
-  const isRegistrationOpen = new Date() < new Date('2025-10-08T23:59:59-06:00');
+  const isRegistrationOpen =
+    activeEvent.acceptsRegistrations &&
+    new Date() >= new Date(activeEvent.registrationOpenDateTime) &&
+    new Date() < new Date(activeEvent.registrationCloseDateTime);
   const isCapacityFull = stats.capacityFull;
   const isCapacityDataLoading = isRegistrationsLoading;
 
@@ -47,13 +64,18 @@ const Inscripcion = () => {
     emergenciaTel: '',
     medico: '',
     banco: '',
-    monto: '',
+    monto: activeEvent.price,
     referencia: '',
     tallaCamisa: '',
     comprobante: null as File | null
   });
   const [birthDateError, setBirthDateError] = useState('');
   const [dniError, setDniError] = useState('');
+
+  const goHomeAfterSuccess = () => {
+    setSuccessRegistration(null);
+    navigate('/');
+  };
 
   const bancos = [
     'BAC Honduras',
@@ -63,13 +85,11 @@ const Inscripcion = () => {
     '12','14','16','XS', 'S', 'M', 'L', 'XL', 'XXL'
   ];
 
-  const MIN_AGE_BY_DISTANCE: Record<string, number> = {
-    '800m': 9,
-    '2km': 15,
-    '5km': 15,
-  };
+  const EVENT_DATE = new Date(activeEvent.date);
 
-  const EVENT_DATE = new Date('2025-10-12');
+  useEffect(() => {
+    setFormData((prev) => ({ ...prev, monto: activeEvent.price }));
+  }, [activeEvent.price]);
 
   const getAgeOnEvent = (birthDate: string): number | null => {
     if (!birthDate) return null;
@@ -95,18 +115,12 @@ const Inscripcion = () => {
     const age = getAgeOnEvent(birthDate);
     if (age === null) return '';
 
-    if (distance === '800m') {
-      if (age >= 9 && age <= 10) return 'Infantiles A (9-10)';
-      if (age >= 11 && age <= 12) return 'Infantiles B (11-12)';
-      if (age >= 13 && age <= 14) return 'Juveniles A (13-14)';
-      if (age >= 15) return 'Masters';
-      return '';
-    }
+    const distanceConfig = activeEvent.distances.find((item) => item.value === distance);
+    if (!distanceConfig) return '';
 
-    if (age >= 15 && age <= 17) return 'Juveniles B (15-17)';
-    if (age >= 18 && age <= 30) return '20-30';
-    if (age >= 31 && age <= 40) return '30-40';
-    return '40+';
+    return distanceConfig.categories.find((category) =>
+      age >= category.minAge && (category.maxAge === null || age <= category.maxAge)
+    )?.label ?? '';
   };
 
   const validateAgeForInputs = (birthDate: string, distance: string) => {
@@ -122,19 +136,20 @@ const Inscripcion = () => {
       return;
     }
 
-    if (age < 9) {
-      setBirthDateError('La edad mínima para participar es 9 años.');
+    const minimumEventAge = Math.min(...activeEvent.distances.map((distance) => distance.minAge));
+
+    if (age < minimumEventAge) {
+      setBirthDateError(`La edad mínima para participar es ${minimumEventAge} años.`);
       return;
     }
 
-    if (age <= 10 && distance && distance !== '800m') {
-      setBirthDateError('Con 9 y 10 años solo puedes inscribirte en 800 metros.');
+    const distanceConfig = activeEvent.distances.find((item) => item.value === distance);
+    if (!distanceConfig) {
+      setBirthDateError('');
       return;
     }
 
-    const minAge = distance ? (MIN_AGE_BY_DISTANCE[distance] ?? 9) : 9;
-
-    if (age < minAge) {
+    if (age < distanceConfig.minAge) {
       setBirthDateError('Esta edad no es permitida para participar.');
       return;
     }
@@ -148,17 +163,13 @@ const Inscripcion = () => {
       const age = getAgeOnEvent(value);
 
       if (age !== null) {
-        if (age < 9) {
+        const minimumEventAge = Math.min(...activeEvent.distances.map((distance) => distance.minAge));
+        const selectedDistance = activeEvent.distances.find((distance) => distance.value === next.distancia);
+
+        if (age < minimumEventAge) {
           next.distancia = '';
-        } else if (next.distancia) {
-          if (age <= 10 && next.distancia !== '800m') {
-            next.distancia = '';
-          } else {
-            const minAgeForDistance = MIN_AGE_BY_DISTANCE[next.distancia] ?? 9;
-            if (age < minAgeForDistance) {
-              next.distancia = '';
-            }
-          }
+        } else if (selectedDistance && age < selectedDistance.minAge) {
+          next.distancia = '';
         }
       }
 
@@ -231,39 +242,34 @@ const Inscripcion = () => {
       return;
     }
 
-    if (age < 9) {
+    const minimumEventAge = Math.min(...activeEvent.distances.map((item) => item.minAge));
+    if (age < minimumEventAge) {
       toast({
         variant: "destructive",
         title: "Edad no permitida",
-        description: "La edad mínima para participar es 9 años.",
+        description: `La edad mínima para participar es ${minimumEventAge} años.`,
       });
-      setBirthDateError('La edad mínima para participar es 9 años.');
+      setBirthDateError(`La edad mínima para participar es ${minimumEventAge} años.`);
       return;
     }
 
-    if (age <= 10 && distance && distance !== '800m') {
+    const distanceConfig = activeEvent.distances.find((item) => item.value === distance);
+    if (!distanceConfig) {
       toast({
         variant: "destructive",
-        title: "Edad no permitida",
-        description: "Con 9 y 10 años solo puedes inscribirte en la distancia de 800 metros.",
+        title: "Distancia inválida",
+        description: "Selecciona una distancia disponible.",
       });
-      setBirthDateError('Con 9 y 10 años solo puedes inscribirte en 800 metros.');
       return;
     }
 
-    const minAge = distance ? (MIN_AGE_BY_DISTANCE[distance] ?? 9) : 9;
+    const minAge = distanceConfig.minAge;
 
     if (age < minAge) {
-      const distanceLabel =
-        distance === '800m' ? '800 metros' :
-        distance === '2km' ? '2 kilómetros' :
-        distance === '5km' ? '5 kilómetros' :
-        'esta distancia';
-
       toast({
         variant: "destructive",
         title: "Edad no permitida",
-        description: `La edad mínima para ${distanceLabel} es de ${minAge} años.`,
+        description: `La edad mínima para ${distanceConfig.label} es de ${minAge} años.`,
       });
       setBirthDateError('Esta edad no es permitida para participar.');
       return;
@@ -342,7 +348,13 @@ const Inscripcion = () => {
 
       toast({
         title: "¡Inscripción registrada!",
-        description: `Te contactaremos para validar tu pago.`,
+        description: `Enviamos la confirmación a ${formData.email.trim()}.`,
+      });
+
+      setSuccessRegistration({
+        dorsal: registration.dorsal,
+        email: formData.email.trim(),
+        eventName: activeEvent.name,
       });
 
       setFormData({
@@ -358,7 +370,7 @@ const Inscripcion = () => {
         emergenciaTel: '',
         medico: '',
         banco: '',
-        monto: '',
+        monto: activeEvent.price,
         referencia: '',
         tallaCamisa: '',
         comprobante: null
@@ -398,7 +410,7 @@ const Inscripcion = () => {
 
   const participantAge = getAgeOnEvent(formData.nacimiento);
   const isDistanceDisabled = (distanceValue: string) => {
-    const minAge = MIN_AGE_BY_DISTANCE[distanceValue] ?? 9;
+    const minAge = activeEvent.distances.find((distance) => distance.value === distanceValue)?.minAge ?? 9;
     return participantAge !== null && participantAge < minAge;
   };
 
@@ -412,7 +424,7 @@ const Inscripcion = () => {
               <AlertCircle className="h-16 w-16 text-destructive mx-auto mb-4" />
               <CardTitle className="text-2xl">Inscripciones Cerradas</CardTitle>
               <CardDescription className="text-lg">
-                El período de inscripciones terminó el 8 de octubre de 2025
+                El período de inscripciones terminó el 7 de agosto de 2026
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -460,6 +472,44 @@ const Inscripcion = () => {
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
+
+      <Dialog open={Boolean(successRegistration)} onOpenChange={(open) => {
+        if (!open && successRegistration) goHomeAfterSuccess();
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className="text-center sm:text-center">
+            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
+              <CheckCircle2 className="h-8 w-8 text-primary" />
+            </div>
+            <DialogTitle className="text-2xl">Gracias por tu inscripción</DialogTitle>
+            <DialogDescription className="text-base">
+              Tu registro para {successRegistration?.eventName} fue recibido correctamente.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="rounded-lg border bg-muted/40 p-4 text-sm">
+            <p>
+              <span className="font-semibold">Dorsal:</span> #{successRegistration?.dorsal}
+            </p>
+            <p className="mt-2">
+              Enviamos un correo de confirmación a{' '}
+              <span className="font-semibold">{successRegistration?.email}</span>.
+            </p>
+            <p className="mt-2 text-muted-foreground">
+              Tu inscripción queda pendiente de validación del pago. Te notificaremos cuando sea confirmada.
+            </p>
+          </div>
+
+          <DialogFooter className="sm:justify-center">
+            <Button type="button" onClick={goHomeAfterSuccess}>
+              Entendido
+            </Button>
+            <Button type="button" variant="outline" asChild>
+              <Link to="/">Volver al inicio</Link>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="mb-8">
@@ -475,7 +525,7 @@ const Inscripcion = () => {
           <CardHeader className="text-center">
             <CardTitle className="text-3xl text-primary">Formulario de Inscripción</CardTitle>
             <CardDescription className="text-lg">
-              Completa todos los campos para inscribirte al Encuentro de Aguas Abiertas Los Naranjos
+              Completa todos los campos para inscribirte a {activeEvent.name}
             </CardDescription>
             <CapacityIndicator current={currentParticipants} max={maxParticipants} className="mt-4" />
           </CardHeader>
@@ -609,15 +659,11 @@ const Inscripcion = () => {
                     <SelectValue placeholder="Selecciona la distancia" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="800m" disabled={isDistanceDisabled('800m')}>
-                      800 metros
-                    </SelectItem>
-                    <SelectItem value="2km" disabled={isDistanceDisabled('2km')}>
-                      2 kilómetros
-                    </SelectItem>
-                    <SelectItem value="5km" disabled={isDistanceDisabled('5km')}>
-                      5 kilómetros
-                    </SelectItem>
+                    {activeEvent.distances.map((distance) => (
+                      <SelectItem key={distance.value} value={distance.value} disabled={isDistanceDisabled(distance.value)}>
+                        {distance.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -727,7 +773,7 @@ const Inscripcion = () => {
                     value={formData.monto}
                     onChange={(e) => setFormData(prev => ({ ...prev, monto: e.target.value }))}
                     required
-                    placeholder="300.00"
+                    placeholder={activeEvent.price}
                   />
                 </div>
                 

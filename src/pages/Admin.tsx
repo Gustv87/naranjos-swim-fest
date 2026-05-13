@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
@@ -18,18 +19,30 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { registrationSchema, type RegistrationCreateInput } from '@/schema/registration';
+import { DEFAULT_DISTANCES, type EventConfig } from '@/config/event';
 
 const Admin = () => {
 const SPECIAL_RESULT_TOKENS = ['NT', 'NS', 'DNS', 'DNF'];
-const DISTANCE_LABELS: Record<string, string> = {
-  '800m': '800 metros',
-  '2km': '2 kilómetros',
-  '5km': '5 kilómetros',
-};
 const SHIRT_SIZES = ['12', '14', '16', 'XS', 'S', 'M', 'L', 'XL', 'XXL'];
-const EVENT_DATE = new Date('2025-10-12');
 const { toast } = useToast();
-const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateRegistrationResult, updateRegistrationData, addRegistration, isLoading: registrationsLoading, error } = useRegistrations();
+const {
+  events,
+  activeEvent,
+  activeEventId,
+  setActiveEventId,
+  registrations,
+  stats,
+  updateRegistrationStatus,
+  toggleCheckIn,
+  updateRegistrationResult,
+  updateRegistrationData,
+  addRegistration,
+  createEvent,
+  updateEvent,
+  isLoading: registrationsLoading,
+  error,
+} = useRegistrations();
+const EVENT_DATE = new Date(activeEvent.date);
 
   const allowedAdmins = useMemo(() => (import.meta.env.VITE_ADMIN_EMAILS || 'admin@losnaranjos.com')
     .split(',')
@@ -58,6 +71,19 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isSavingCreate, setIsSavingCreate] = useState(false);
   const [createError, setCreateError] = useState('');
+  const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
+  const [isSavingEvent, setIsSavingEvent] = useState(false);
+  const [eventForm, setEventForm] = useState({
+    name: '',
+    date: '',
+    time: '06:00',
+    registrationCloseDate: '',
+    location: '',
+    price: '600',
+    paymentInfo: '',
+    distancesText: '',
+    categoriesText: '',
+  });
 
   const hasCapacityLimit = typeof stats.max === 'number' && Number.isFinite(stats.max) && stats.max > 0;
   const remainingLabel = hasCapacityLimit && typeof stats.remaining === 'number'
@@ -77,17 +103,37 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
       email: '',
       telefono: '',
       club: '',
-      distancia: '800m',
+      distancia: activeEvent.distances[0]?.value ?? '',
       sexo: 'M',
       emergenciaNombre: '',
       emergenciaTel: '',
       medico: '',
       banco: 'BAC Honduras',
-      monto: '300',
+      monto: activeEvent.price,
       referencia: '',
       tallaCamisa: '',
     },
   });
+
+  useEffect(() => {
+    createForm.reset({
+      nombre: '',
+      dni: '',
+      nacimiento: '',
+      email: '',
+      telefono: '',
+      club: '',
+      distancia: activeEvent.distances[0]?.value ?? '',
+      sexo: 'M',
+      emergenciaNombre: '',
+      emergenciaTel: '',
+      medico: '',
+      banco: 'BAC Honduras',
+      monto: activeEvent.price,
+      referencia: '',
+      tallaCamisa: '',
+    });
+  }, [activeEvent, createForm]);
 
   const getAgeOnEvent = (birthDate: string): number | null => {
     if (!birthDate) return null;
@@ -111,18 +157,12 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
     const age = getAgeOnEvent(birthDate);
     if (age === null) return '';
 
-    if (distance === '800m') {
-      if (age >= 9 && age <= 10) return 'Infantiles A (9-10)';
-      if (age >= 11 && age <= 12) return 'Infantiles B (11-12)';
-      if (age >= 13 && age <= 14) return 'Juveniles A (13-14)';
-      if (age >= 15) return 'Masters';
-      return '';
-    }
+    const distanceConfig = activeEvent.distances.find((item) => item.value === distance);
+    if (!distanceConfig) return '';
 
-    if (age >= 15 && age <= 17) return 'Juveniles B (15-17)';
-    if (age >= 18 && age <= 30) return '20-30';
-    if (age >= 31 && age <= 40) return '30-40';
-    return '40+';
+    return distanceConfig.categories.find((category) =>
+      age >= category.minAge && (category.maxAge === null || age <= category.maxAge)
+    )?.label ?? '';
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -229,6 +269,8 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
 
   const adminEmail = (user?.email ?? localSession?.email)?.toLowerCase() ?? '';
   const isReadOnlyMode = !user && Boolean(localSession);
+  const canCreateInActiveEvent = activeEvent.acceptsRegistrations && !isReadOnlyMode;
+  const mutationDisabled = isReadOnlyMode || !activeEvent.acceptsRegistrations;
   const showReadOnlyWarning = () => {
     toast({
       variant: 'destructive',
@@ -236,7 +278,15 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
       description: 'Inicia sesión con una cuenta autorizada de Firebase para editar y gestionar inscripciones.',
     });
   };
+  const showHistoricalWarning = () => {
+    toast({
+      variant: 'destructive',
+      title: 'Evento histórico',
+      description: 'Este evento está en modo historial. Cambia al evento activo para crear o modificar inscripciones.',
+    });
+  };
   const readOnlyTooltip = isReadOnlyMode ? 'Modo de solo lectura. Inicia sesión con una cuenta autorizada para editar.' : undefined;
+  const mutationTooltip = readOnlyTooltip || (!activeEvent.acceptsRegistrations ? 'Evento histórico: edición deshabilitada.' : undefined);
 
   const handleLogout = async () => {
     try {
@@ -255,6 +305,140 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
         title: 'Error',
         description: 'No se pudo cerrar la sesión. Intenta nuevamente.',
       });
+    }
+  };
+
+  const handleEventChange = (eventId: string) => {
+    setActiveEventId(eventId);
+    setSearchTerm('');
+    setStatusFilter('');
+    setDistanceFilter('');
+    setCategoryFilter('');
+    setResultEdits({});
+  };
+
+  const slugify = (value: string) =>
+    value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 80);
+
+  const openEventDialog = () => {
+    setEventForm({
+      name: '',
+      date: '',
+      time: '06:00',
+      registrationCloseDate: '',
+      location: activeEvent.location,
+      price: activeEvent.price || '600',
+      paymentInfo: activeEvent.paymentInfo,
+      distancesText: activeEvent.distances.map((distance) => distance.value).join(', '),
+      categoriesText: activeEvent.distances[0]?.categories.map((category) => {
+        const range = category.maxAge === null ? `${category.minAge}+` : `${category.minAge}-${category.maxAge}`;
+        return `${category.label}:${range}`;
+      }).join(', ') ?? '',
+    });
+    setIsEventDialogOpen(true);
+  };
+
+  const parseCategories = (value: string) => {
+    const parsed = value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map((item) => {
+        const [labelPart, rangePart] = item.split(':').map((part) => part?.trim());
+        const label = labelPart || item;
+        const range = rangePart || '';
+        const plusMatch = range.match(/^(\d+)\+$/);
+        const rangeMatch = range.match(/^(\d+)\s*-\s*(\d+)$/);
+
+        if (plusMatch) {
+          return { label, minAge: Number(plusMatch[1]), maxAge: null };
+        }
+
+        if (rangeMatch) {
+          return { label, minAge: Number(rangeMatch[1]), maxAge: Number(rangeMatch[2]) };
+        }
+
+        return { label, minAge: 9, maxAge: null };
+      });
+
+    return parsed.length ? parsed : DEFAULT_DISTANCES[0].categories;
+  };
+
+  const parseDistances = (value: string) => {
+    const requested = value
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    if (!requested.length) return DEFAULT_DISTANCES;
+
+    const categories = parseCategories(eventForm.categoriesText);
+
+    return requested.map((distanceValue) => {
+      const existing = DEFAULT_DISTANCES.find((distance) => distance.value.toLowerCase() === distanceValue.toLowerCase());
+      return existing ? { ...existing, categories } : {
+        value: distanceValue,
+        label: distanceValue,
+        minAge: 9,
+        categories,
+      };
+    });
+  };
+
+  const handleCreateEvent = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (isReadOnlyMode) {
+      showReadOnlyWarning();
+      return;
+    }
+
+    setIsSavingEvent(true);
+
+    try {
+      const id = `${slugify(eventForm.name)}-${eventForm.date.slice(0, 4)}`;
+      if (!id || !eventForm.date || !eventForm.registrationCloseDate) {
+        throw new Error('Completa nombre, fecha del evento y cierre de inscripción.');
+      }
+
+      const newEvent: EventConfig = {
+        id,
+        name: eventForm.name.trim(),
+        date: eventForm.date,
+        dateTime: `${eventForm.date}T${eventForm.time || '06:00'}:00-06:00`,
+        registrationOpenDateTime: new Date().toISOString(),
+        registrationCloseDateTime: `${eventForm.registrationCloseDate}T23:59:59-06:00`,
+        location: eventForm.location.trim(),
+        locationShort: eventForm.location.trim(),
+        price: eventForm.price.trim(),
+        paymentInfo: eventForm.paymentInfo.trim(),
+        capacityLimit: null,
+        distances: parseDistances(eventForm.distancesText),
+        status: 'active',
+        acceptsRegistrations: true,
+      };
+
+      await createEvent(newEvent);
+
+      toast({
+        title: 'Competencia creada',
+        description: `${newEvent.name} quedó como evento activo.`,
+      });
+      setIsEventDialogOpen(false);
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Error al crear competencia',
+        description: error instanceof Error ? error.message : 'No se pudo crear la competencia.',
+      });
+    } finally {
+      setIsSavingEvent(false);
     }
   };
 
@@ -345,7 +529,7 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
     const now = new Date();
     const formattedNow = now.toLocaleString('es-HN', { dateStyle: 'medium', timeStyle: 'short' });
 
-    const preferredDistances = ['800m', '2km', '5km'];
+    const preferredDistances = activeEvent.distances.map((distance) => distance.value);
     const distancesToExport = (() => {
       if (distanceFilter) {
         return filteredParticipants.some((participant) => participant.distancia === distanceFilter)
@@ -396,7 +580,7 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
           </tr>`;
       }).join('');
 
-      const label = DISTANCE_LABELS[distance] ?? distance;
+      const label = activeEvent.distances.find((item) => item.value === distance)?.label ?? distance;
 
       return `
         <section class="distance">
@@ -429,7 +613,7 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
     const filtersSummary = [
       searchTerm ? `Búsqueda: "${escapeHtml(searchTerm)}"` : null,
       statusFilter ? `Estado: ${escapeHtml(statusFilter)}` : null,
-      distanceFilter ? `Distancia: ${escapeHtml(DISTANCE_LABELS[distanceFilter] ?? distanceFilter)}` : null,
+      distanceFilter ? `Distancia: ${escapeHtml(activeEvent.distances.find((item) => item.value === distanceFilter)?.label ?? distanceFilter)}` : null,
       categoryFilter ? `Categoría: ${escapeHtml(categoryFilter)}` : null,
     ].filter(Boolean).join(' • ');
 
@@ -550,6 +734,10 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
       showReadOnlyWarning();
       return;
     }
+    if (!activeEvent.acceptsRegistrations) {
+      showHistoricalWarning();
+      return;
+    }
 
     const rawValue = resultEdits[participant.id] ?? participant.resultTime ?? '';
     const trimmedValue = rawValue.trim();
@@ -583,6 +771,10 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
   const handleStatusChange = async (id: string, status: RegistrationStatus) => {
     if (isReadOnlyMode) {
       showReadOnlyWarning();
+      return;
+    }
+    if (!activeEvent.acceptsRegistrations) {
+      showHistoricalWarning();
       return;
     }
 
@@ -640,6 +832,10 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
       showReadOnlyWarning();
       return;
     }
+    if (!activeEvent.acceptsRegistrations) {
+      showHistoricalWarning();
+      return;
+    }
 
     try {
       const shouldCheckIn = !participant.checkedInAt;
@@ -665,6 +861,10 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
       showReadOnlyWarning();
       return;
     }
+    if (!activeEvent.acceptsRegistrations) {
+      showHistoricalWarning();
+      return;
+    }
 
     setEditParticipant(participant);
     const initial: RegistrationEditableFields = {
@@ -675,7 +875,7 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
       email: participant.email,
       telefono: participant.telefono,
       club: participant.club,
-      distancia: participant.distancia || '800m',
+      distancia: participant.distancia || activeEvent.distances[0]?.value || '',
       sexo: participant.sexo || 'M',
       categoria: participant.categoria,
       emergenciaNombre: participant.emergenciaNombre,
@@ -688,7 +888,7 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
     };
 
     if (!initial.distancia) {
-      initial.distancia = '800m';
+      initial.distancia = activeEvent.distances[0]?.value || '';
     }
 
     initial.categoria = calculateCategory(initial.nacimiento ?? '', initial.distancia ?? '');
@@ -723,6 +923,10 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
   const handleEditSave = async () => {
     if (isReadOnlyMode) {
       showReadOnlyWarning();
+      return;
+    }
+    if (!activeEvent.acceptsRegistrations) {
+      showHistoricalWarning();
       return;
     }
 
@@ -793,6 +997,11 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
   const handleCreateSubmit = createForm.handleSubmit(async (values) => {
     if (isReadOnlyMode) {
       showReadOnlyWarning();
+      return;
+    }
+
+    if (!activeEvent.acceptsRegistrations) {
+      setCreateError('Este evento es histórico y no acepta nuevas inscripciones.');
       return;
     }
 
@@ -1008,19 +1217,55 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
       
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="mb-8">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h1 className="text-3xl font-bold text-primary">Panel de Administración</h1>
-              <p className="text-muted-foreground">Gestión de inscripciones - Los Naranjos 2025</p>
+              <p className="text-muted-foreground">Gestión de inscripciones - {activeEvent.name}</p>
+              <p className="text-xs text-muted-foreground">Evento activo: {activeEvent.id}</p>
             </div>
-            <Button 
-              variant="outline" 
-              onClick={handleLogout}
-            >
-              Cerrar Sesión
-            </Button>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="min-w-[260px] space-y-1.5">
+                <Label htmlFor="admin-event-selector">Ver evento</Label>
+                <select
+                  id="admin-event-selector"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                  value={activeEventId}
+                  onChange={(event) => handleEventChange(event.target.value)}
+                >
+                  {events.map((event) => (
+                    <option key={event.id} value={event.id}>
+                      {event.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <Button 
+                variant="outline" 
+                onClick={handleLogout}
+              >
+                Cerrar Sesión
+              </Button>
+              <Button
+                className="button-gradient shadow-button"
+                onClick={openEventDialog}
+                disabled={isReadOnlyMode}
+                title={readOnlyTooltip}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Nueva competencia
+              </Button>
+            </div>
           </div>
         </div>
+
+        {!activeEvent.acceptsRegistrations && (
+          <Alert className="mb-8">
+            <AlertTitle>Evento histórico</AlertTitle>
+            <AlertDescription>
+              Estás viendo registros de una edición anterior. La creación de nuevas inscripciones está deshabilitada para evitar mezclar datos.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {isReadOnlyMode && (
           <Alert className="mb-8 border-warm-accent/40 bg-warm-accent/10">
@@ -1101,10 +1346,18 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
                 showReadOnlyWarning();
                 return;
               }
+              if (!activeEvent.acceptsRegistrations) {
+                toast({
+                  variant: 'destructive',
+                  title: 'Evento histórico',
+                  description: 'No se pueden crear inscripciones nuevas en una edición anterior.',
+                });
+                return;
+              }
               setIsCreateOpen(true);
             }}
-            disabled={isReadOnlyMode}
-            title={readOnlyTooltip}
+            disabled={!canCreateInActiveEvent}
+            title={readOnlyTooltip || (!activeEvent.acceptsRegistrations ? 'Evento histórico: creación deshabilitada.' : undefined)}
           >
             <Plus className="mr-2 h-4 w-4" />
             Nueva inscripción
@@ -1153,9 +1406,9 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
                   onChange={(e) => setDistanceFilter(e.target.value)}
                 >
                   <option value="">Todas</option>
-                  <option value="800m">800m</option>
-                  <option value="2km">2km</option>
-                  <option value="5km">5km</option>
+                  {activeEvent.distances.map((distance) => (
+                    <option key={distance.value} value={distance.value}>{distance.label}</option>
+                  ))}
                 </select>
               </div>
               
@@ -1252,8 +1505,8 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
                                 type="button"
                                 size="sm"
                                 className="flex items-center gap-1"
-                                disabled={isReadOnlyMode || resultSaving[participant.id]}
-                                title={readOnlyTooltip}
+                                disabled={mutationDisabled || resultSaving[participant.id]}
+                                title={mutationTooltip}
                                 onClick={() => handleResultSave(participant)}
                               >
                                 <Clock className="h-4 w-4" />
@@ -1318,8 +1571,8 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
                               variant="outline"
                               className="gap-1"
                               onClick={() => openEditDialog(participant)}
-                              disabled={isReadOnlyMode}
-                              title={readOnlyTooltip}
+                              disabled={mutationDisabled}
+                              title={mutationTooltip}
                             >
                               <Pencil className="h-3.5 w-3.5" />
                               Editar
@@ -1329,8 +1582,8 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
                               variant="outline"
                               className={participant.checkedInAt ? 'bg-lake-green/10 text-lake-green' : ''}
                               onClick={() => handleCheckIn(participant)}
-                              disabled={isReadOnlyMode || participant.status === 'rejected'}
-                              title={readOnlyTooltip}
+                              disabled={mutationDisabled || participant.status === 'rejected'}
+                              title={mutationTooltip}
                             >
                               {participant.checkedInAt ? 'Revertir' : 'Check-in'}
                             </Button>
@@ -1341,8 +1594,8 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
                                   variant="outline"
                                   className="text-lake-green"
                                   onClick={() => handleStatusChange(participant.id, 'validated')}
-                                  disabled={isReadOnlyMode}
-                                  title={readOnlyTooltip}
+                                  disabled={mutationDisabled}
+                                  title={mutationTooltip}
                                 >
                                   ✓
                                 </Button>
@@ -1351,8 +1604,8 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
                                   variant="outline"
                                   className="text-destructive"
                                   onClick={() => handleStatusChange(participant.id, 'rejected')}
-                                  disabled={isReadOnlyMode}
-                                  title={readOnlyTooltip}
+                                  disabled={mutationDisabled}
+                                  title={mutationTooltip}
                                 >
                                   ✗
                                 </Button>
@@ -1362,8 +1615,8 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
                                 size="sm"
                                 variant="outline"
                                 onClick={() => handleStatusChange(participant.id, 'pending')}
-                                disabled={isReadOnlyMode}
-                                title={readOnlyTooltip}
+                                disabled={mutationDisabled}
+                                title={mutationTooltip}
                               >
                                 Pend.
                               </Button>
@@ -1378,6 +1631,78 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
             </div>
           </CardContent>
         </Card>
+
+        <Dialog open={isEventDialogOpen} onOpenChange={setIsEventDialogOpen}>
+          <DialogContent className="w-[95vw] max-w-3xl">
+            <form onSubmit={handleCreateEvent} className="space-y-5">
+              <DialogHeader>
+                <DialogTitle>Nueva competencia</DialogTitle>
+                <DialogDescription>
+                  Crea un evento activo. La fecha alimenta el contador, el precio alimenta inscripción y reglamento, y las distancias se usan en formulario/resultados.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label>Nombre de la competencia</Label>
+                  <Input value={eventForm.name} onChange={(e) => setEventForm((prev) => ({ ...prev, name: e.target.value }))} required />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Fecha</Label>
+                  <Input type="date" value={eventForm.date} onChange={(e) => setEventForm((prev) => ({ ...prev, date: e.target.value }))} required />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Hora de salida</Label>
+                  <Input type="time" value={eventForm.time} onChange={(e) => setEventForm((prev) => ({ ...prev, time: e.target.value }))} required />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Cierre de inscripción</Label>
+                  <Input type="date" value={eventForm.registrationCloseDate} onChange={(e) => setEventForm((prev) => ({ ...prev, registrationCloseDate: e.target.value }))} required />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Precio (L)</Label>
+                  <Input value={eventForm.price} onChange={(e) => setEventForm((prev) => ({ ...prev, price: e.target.value }))} required />
+                </div>
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label>Lugar</Label>
+                  <Input value={eventForm.location} onChange={(e) => setEventForm((prev) => ({ ...prev, location: e.target.value }))} required />
+                </div>
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label>Distancias separadas por coma</Label>
+                  <Input value={eventForm.distancesText} onChange={(e) => setEventForm((prev) => ({ ...prev, distancesText: e.target.value }))} placeholder="800m, 2km, 5km" required />
+                  <p className="text-xs text-muted-foreground">
+                    Ejemplo: 800m, 2km, 5km
+                  </p>
+                </div>
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label>Categorías por edad</Label>
+                  <Textarea
+                    value={eventForm.categoriesText}
+                    onChange={(e) => setEventForm((prev) => ({ ...prev, categoriesText: e.target.value }))}
+                    placeholder="Infantiles A (9-10):9-10, Infantiles B (11-12):11-12, Masters:15+"
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Formato: Nombre:min-max o Nombre:min+. Estas categorías se aplican a las distancias del evento.
+                  </p>
+                </div>
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label>Información de pago</Label>
+                  <Textarea value={eventForm.paymentInfo} onChange={(e) => setEventForm((prev) => ({ ...prev, paymentInfo: e.target.value }))} required />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsEventDialogOpen(false)} disabled={isSavingEvent}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={isSavingEvent}>
+                  {isSavingEvent ? 'Creando...' : 'Crear competencia'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={isEditOpen} onOpenChange={(open) => (open ? setIsEditOpen(true) : closeEditDialog())}>
           <DialogContent className="w-[95vw] max-w-4xl max-h-[85vh] p-0">
@@ -1463,16 +1788,16 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
                       <div className="space-y-1.5">
                         <Label>Distancia</Label>
                         <Select
-                          value={editForm.distancia ?? '800m'}
+                          value={editForm.distancia ?? activeEvent.distances[0]?.value ?? ''}
                           onValueChange={(value) => handleEditFieldChange('distancia', value)}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Selecciona distancia" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="800m">800 metros</SelectItem>
-                            <SelectItem value="2km">2 kilómetros</SelectItem>
-                            <SelectItem value="5km">5 kilómetros</SelectItem>
+                            {activeEvent.distances.map((distance) => (
+                              <SelectItem key={distance.value} value={distance.value}>{distance.label}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -1603,7 +1928,7 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
                 <Button variant="outline" type="button" onClick={closeEditDialog} disabled={isSavingEdit}>
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={isSavingEdit || isReadOnlyMode} title={readOnlyTooltip}>
+                <Button type="submit" disabled={isSavingEdit || mutationDisabled} title={mutationTooltip}>
                   {isSavingEdit ? 'Guardando…' : 'Guardar cambios'}
                 </Button>
               </DialogFooter>
@@ -1678,14 +2003,14 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
                   </div>
                   <div className="space-y-1.5">
                     <Label>Distancia *</Label>
-                    <Select value={createForm.watch('distancia')} onValueChange={(value) => createForm.setValue('distancia', value as '800m' | '2km' | '5km')}>
+                    <Select value={createForm.watch('distancia')} onValueChange={(value) => createForm.setValue('distancia', value)}>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecciona distancia" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="800m">800 metros</SelectItem>
-                        <SelectItem value="2km">2 kilómetros</SelectItem>
-                        <SelectItem value="5km">5 kilómetros</SelectItem>
+                        {activeEvent.distances.map((distance) => (
+                          <SelectItem key={distance.value} value={distance.value}>{distance.label}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     {createForm.formState.errors.distancia && (
@@ -1767,7 +2092,7 @@ const { registrations, stats, updateRegistrationStatus, toggleCheckIn, updateReg
                 >
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={isSavingCreate || isReadOnlyMode} title={readOnlyTooltip}>
+                <Button type="submit" disabled={isSavingCreate || !canCreateInActiveEvent} title={readOnlyTooltip || (!activeEvent.acceptsRegistrations ? 'Evento histórico: creación deshabilitada.' : undefined)}>
                   {isSavingCreate ? 'Guardando…' : 'Crear inscripción'}
                 </Button>
               </DialogFooter>

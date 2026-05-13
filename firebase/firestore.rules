@@ -4,18 +4,22 @@ service cloud.firestore {
     match /registrations/{registrationId} {
       function allowedKeys(data) {
         return data.keys().hasOnly([
-          'nombre', 'dni', 'nacimiento', 'email', 'telefono', 'club', 'distancia', 'sexo',
+          'eventId', 'nombre', 'dni', 'nacimiento', 'email', 'telefono', 'club', 'distancia', 'sexo',
           'categoria', 'emergenciaNombre', 'emergenciaTel', 'medico', 'banco', 'monto',
           'referencia', 'tallaCamisa', 'comprobanteNombre', 'comprobanteUrl', 'comprobantePath',
           'dorsal', 'status', 'createdAt', 'checkedInAt', 'checkedInBy', 'dniNormalized',
-          'resultTime', 'resultSeconds', 'resultRecordedAt', 'resultRecordedBy', 'updatedAt', 'updatedBy'
+          'resultTime', 'resultSeconds', 'resultRecordedAt', 'resultRecordedBy', 'updatedAt', 'updatedBy',
+          'registrationEmailSentAt', 'registrationEmailTo',
+          'validationEmailSentAt', 'validationEmailTo',
+          'checkInEmailSentAt', 'checkInEmailTo'
         ]);
       }
 
       allow read: if true;
 
       allow create: if allowedKeys(request.resource.data)
-        && request.resource.data.status == 'pending';
+        && request.resource.data.status == 'pending'
+        && request.resource.data.eventId is string;
 
       allow update: if allowedKeys(request.resource.data)
         && request.resource.data.diff(resource.data).changedKeys().hasOnly([
@@ -32,10 +36,81 @@ service cloud.firestore {
         && (request.resource.data.resultRecordedBy == null || request.resource.data.resultRecordedBy is string)
         && (request.resource.data.resultTime == null || request.resource.data.resultTime is string)
         && (request.resource.data.resultSeconds == null || request.resource.data.resultSeconds is number)
+        && (request.resource.data.eventId == null || request.resource.data.eventId is string)
         && (request.resource.data.dniNormalized == null || request.resource.data.dniNormalized is string)
         && (request.resource.data.updatedAt == null || request.resource.data.updatedAt is timestamp)
         && (request.resource.data.updatedBy == null || request.resource.data.updatedBy is string);
 
+      allow delete: if false;
+    }
+
+    match /events/{eventId} {
+      function allowedEventKeys(data) {
+        return data.keys().hasOnly([
+          'id', 'name', 'date', 'dateTime', 'registrationOpenDateTime', 'registrationCloseDateTime',
+          'location', 'locationShort', 'price', 'paymentInfo', 'capacityLimit', 'distances',
+          'status', 'acceptsRegistrations', 'legacyWithoutEventId', 'updatedAt'
+        ]);
+      }
+
+      match /registrations/{registrationId} {
+        function allowedKeys(data) {
+          return data.keys().hasOnly([
+            'eventId', 'nombre', 'dni', 'nacimiento', 'email', 'telefono', 'club', 'distancia', 'sexo',
+            'categoria', 'emergenciaNombre', 'emergenciaTel', 'medico', 'banco', 'monto',
+            'referencia', 'tallaCamisa', 'comprobanteNombre', 'comprobanteUrl', 'comprobantePath',
+            'dorsal', 'status', 'createdAt', 'checkedInAt', 'checkedInBy', 'dniNormalized',
+            'resultTime', 'resultSeconds', 'resultRecordedAt', 'resultRecordedBy', 'updatedAt', 'updatedBy',
+            'registrationEmailSentAt', 'registrationEmailTo',
+            'validationEmailSentAt', 'validationEmailTo',
+            'checkInEmailSentAt', 'checkInEmailTo'
+          ]);
+        }
+
+        allow read: if true;
+
+        allow create: if allowedKeys(request.resource.data)
+          && request.resource.data.status == 'pending'
+          && request.resource.data.eventId == eventId;
+
+        allow update: if allowedKeys(request.resource.data)
+          && request.resource.data.eventId == eventId
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            'nombre', 'dni', 'dniNormalized', 'nacimiento', 'email', 'telefono', 'club',
+            'distancia', 'sexo', 'categoria', 'emergenciaNombre', 'emergenciaTel', 'medico',
+            'banco', 'monto', 'referencia', 'tallaCamisa', 'dorsal',
+            'status', 'checkedInAt', 'checkedInBy',
+            'resultTime', 'resultSeconds', 'resultRecordedAt', 'resultRecordedBy',
+            'updatedAt', 'updatedBy'
+          ])
+          && (request.resource.data.checkedInAt == null || request.resource.data.checkedInAt is timestamp)
+          && (request.resource.data.checkedInBy == null || request.resource.data.checkedInBy is string)
+          && (request.resource.data.resultRecordedAt == null || request.resource.data.resultRecordedAt is timestamp)
+          && (request.resource.data.resultRecordedBy == null || request.resource.data.resultRecordedBy is string)
+          && (request.resource.data.resultTime == null || request.resource.data.resultTime is string)
+          && (request.resource.data.resultSeconds == null || request.resource.data.resultSeconds is number)
+          && (request.resource.data.dniNormalized == null || request.resource.data.dniNormalized is string)
+          && (request.resource.data.updatedAt == null || request.resource.data.updatedAt is timestamp)
+          && (request.resource.data.updatedBy == null || request.resource.data.updatedBy is string);
+
+        allow delete: if false;
+      }
+
+      allow read: if true;
+      allow create, update: if allowedEventKeys(request.resource.data)
+        && request.resource.data.id == eventId
+        && request.resource.data.name is string
+        && request.resource.data.date is string
+        && request.resource.data.dateTime is string
+        && request.resource.data.registrationCloseDateTime is string
+        && request.resource.data.location is string
+        && request.resource.data.price is string
+        && request.resource.data.paymentInfo is string
+        && request.resource.data.distances is list
+        && request.resource.data.status in ['active', 'past']
+        && request.resource.data.acceptsRegistrations is bool
+        && (request.resource.data.capacityLimit == null || request.resource.data.capacityLimit is number)
+        && (request.resource.data.updatedAt == null || request.resource.data.updatedAt is timestamp);
       allow delete: if false;
     }
 

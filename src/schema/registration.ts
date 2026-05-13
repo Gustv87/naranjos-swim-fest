@@ -7,7 +7,7 @@ export const registrationSchema = z.object({
   email: z.string().trim().email('Correo inválido'),
   telefono: z.string().trim().min(7, 'Teléfono inválido'),
   club: z.string().trim().optional(),
-  distancia: z.enum(['800m', '2km', '5km']),
+  distancia: z.string().trim().min(1, 'La distancia es obligatoria'),
   sexo: z.enum(['M', 'F']),
   emergenciaNombre: z.string().trim().optional(),
   emergenciaTel: z.string().trim().optional(),

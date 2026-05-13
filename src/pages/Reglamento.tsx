@@ -3,12 +3,17 @@ import { FooterGM } from '@/components/layout/footer';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Download, Clock, Users, Shield, Trophy, MapPin, FileText } from 'lucide-react';
+import { ArrowLeft, Clock, Users, Shield, Trophy, MapPin, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import reglamentoPdf from '@/assets/Reglamento Open Water Los Naranjos.pdf';
 import logoImage from '@/assets/Logo.webp';
+import { useRegistrations } from '@/context/registration-context';
 
 const Reglamento = () => {
+  const { activeEvent } = useRegistrations();
+  const eventDate = new Date(activeEvent.dateTime);
+  const closeDate = new Date(activeEvent.registrationCloseDateTime);
+  const formattedEventDate = eventDate.toLocaleString('es-HN', { dateStyle: 'long', timeStyle: 'short' });
+  const formattedCloseDate = closeDate.toLocaleDateString('es-HN', { dateStyle: 'long' });
   const rules = [
     {
       icon: <Clock className="h-6 w-6" />,
@@ -18,7 +23,7 @@ const Reglamento = () => {
     {
       icon: <Users className="h-6 w-6" />,
       title: 'Límite de Participantes',
-      description: 'Máximo 100 participantes. Las inscripciones se cerrarán al completar el cupo o el 7 de octubre de 2025.'
+      description: `${activeEvent.capacityLimit ? `Máximo ${activeEvent.capacityLimit} participantes.` : 'Sin límite de participantes.'} Las inscripciones se cerrarán el ${formattedCloseDate}.`
     },
     {
       icon: <Shield className="h-6 w-6" />,
@@ -28,20 +33,10 @@ const Reglamento = () => {
 
   ];
 
-  const categories = [
-    {
-      distance: '800m',
-      groups: ['Infantiles A (9-10 años)', 'Infantiles B (11-12 años)', 'Juveniles A (13-14 años)', 'Masters (15+ años)']
-    },
-    {
-      distance: '2km',
-      groups: ['Juveniles B (15-17 años)', '20-30 años', '30-40 años', '40+ años']
-    },
-    {
-      distance: '5km',
-      groups: ['Juveniles B (15-17 años)', '20-30 años', '30-40 años', '40+ años']
-    }
-  ];
+  const categories = activeEvent.distances.map((distance) => ({
+    distance: distance.label,
+    groups: distance.categories.map((category) => category.label),
+  }));
 
   const equipment = [
     "Gorro de natación",
@@ -171,13 +166,14 @@ const Reglamento = () => {
         <body>
           ${logoMarkup}
           <h1>Reglamento Oficial</h1>
-          <div class="meta">Encuentro de Aguas Abiertas Los Naranjos 2025<br>Generado el ${escapeHtml(formattedNow)}</div>
+          <div class="meta">${escapeHtml(activeEvent.name)}<br>Generado el ${escapeHtml(formattedNow)}</div>
           <div class="event-info">
             <dl>
-              <dt>Fecha:</dt><dd>12 de octubre de 2025, 6:00 AM</dd>
-              <dt>Lugar:</dt><dd>Lago de Yojoa, Los Naranjos, Honduras</dd>
+              <dt>Fecha:</dt><dd>${escapeHtml(formattedEventDate)}</dd>
+              <dt>Lugar:</dt><dd>${escapeHtml(activeEvent.location)}</dd>
               <dt>Organiza:</dt><dd>Swim + plus HN</dd>
-              <dt>Cupo:</dt><dd>Máximo 100 participantes</dd>
+              <dt>Cupo:</dt><dd>${activeEvent.capacityLimit ? `Máximo ${activeEvent.capacityLimit} participantes` : 'Sin límite'}</dd>
+              <dt>Inscripción:</dt><dd>L. ${escapeHtml(activeEvent.price)}. ${escapeHtml(activeEvent.paymentInfo)}</dd>
             </dl>
           </div>
           <div class="section">
@@ -239,20 +235,14 @@ const Reglamento = () => {
               Reglamento Oficial
             </CardTitle>
             <CardDescription className="text-lg">
-              Encuentro de Aguas Abiertas Los Naranjos 2025
+              {activeEvent.name}
             </CardDescription>
           </CardHeader>
           <CardContent className="text-center">
             <div className="flex flex-wrap justify-center gap-3">
-              <Button size="lg" className="button-gradient shadow-button" asChild>
-                <a href={reglamentoPdf} download target="_blank" rel="noopener noreferrer">
-                  <Download className="mr-2 h-5 w-5" />
-                  Descargar PDF Completo
-                </a>
-              </Button>
-              <Button size="lg" variant="outline" onClick={handleExportReglamentoPdf}>
+              <Button size="lg" className="button-gradient shadow-button" onClick={handleExportReglamentoPdf}>
                 <FileText className="mr-2 h-5 w-5" />
-                Imprimir Reglamento
+                Generar PDF del Reglamento
               </Button>
             </div>
           </CardContent>
@@ -269,11 +259,11 @@ const Reglamento = () => {
           <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <h4 className="font-semibold text-primary mb-2">Fecha y Hora</h4>
-              <p className="text-muted-foreground mb-4">12 de octubre de 2025, 6:00 AM</p>
+              <p className="text-muted-foreground mb-4">{formattedEventDate}</p>
 
               <h4 className="font-semibold text-primary mb-2">Ubicación</h4>
               <p className="text-muted-foreground mb-4">
-                Lago de Yojoa, Los Naranjos, Honduras
+                {activeEvent.location}
               </p>
 
               <h4 className="font-semibold text-primary mb-2">Organización</h4>
@@ -286,7 +276,7 @@ const Reglamento = () => {
 
               <h4 className="font-semibold text-primary mb-2">Cupo</h4>
               <p className="text-muted-foreground">
-                Máximo 100 participantes
+                {activeEvent.capacityLimit ? `Máximo ${activeEvent.capacityLimit} participantes` : 'Sin límite'}
               </p>
             </div>
           </CardContent>
@@ -312,7 +302,7 @@ const Reglamento = () => {
                 <div className="text-primary"><Users className="h-6 w-6" /></div>
                 <div>
                   <h4 className="font-semibold text-primary mb-2">Costo de Inscripción</h4>
-                  <p className="text-sm text-muted-foreground">L 300.00. Por participante!!  Deposita en BAC Honduras 743657881 a nombre de CARLOS RENE CERRATO OSORIO.</p>
+                  <p className="text-sm text-muted-foreground">L {activeEvent.price}. {activeEvent.paymentInfo}</p>
                 </div>
               </div>
             </div>

@@ -7,18 +7,20 @@ import {
   getDocs,
   limit,
   onSnapshot,
-  orderBy,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
   where,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject, type StorageReference } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
+import { CURRENT_EVENT_ID, EVENTS, getEventById, type EventConfig } from '@/config/event';
 
 export type RegistrationStatus = 'pending' | 'validated' | 'rejected';
 
 export type RegistrationInput = {
+  eventId?: string;
   nombre: string;
   dni: string;
   nacimiento: string;
@@ -40,6 +42,7 @@ export type RegistrationInput = {
 
 export type Registration = {
   id: string;
+  eventId: string;
   createdAt: string;
   dorsal: string;
   status: RegistrationStatus;
@@ -94,6 +97,12 @@ export type RegistrationEditableFields = Partial<{
 }>; 
 
 interface RegistrationContextValue {
+  events: EventConfig[];
+  activeEvent: EventConfig;
+  activeEventId: string;
+  setActiveEventId: (eventId: string) => void;
+  createEvent: (event: EventConfig) => Promise<void>;
+  updateEvent: (eventId: string, event: Partial<EventConfig>) => Promise<void>;
   registrations: Registration[];
   stats: {
     total: number;
@@ -114,10 +123,20 @@ interface RegistrationContextValue {
   updateRegistrationData: (id: string, updates: RegistrationEditableFields) => Promise<void>;
 }
 
-const CAPACITY_LIMIT: number | null = null;
 const COLLECTION_NAME = 'registrations';
+const EVENTS_COLLECTION_NAME = 'events';
 
 const RegistrationContext = createContext<RegistrationContextValue | undefined>(undefined);
+
+const getRegistrationsCollectionRef = (event: EventConfig) =>
+  event.legacyWithoutEventId
+    ? collection(db, COLLECTION_NAME)
+    : collection(db, EVENTS_COLLECTION_NAME, event.id, COLLECTION_NAME);
+
+const getRegistrationDocumentRef = (event: EventConfig, id: string) =>
+  event.legacyWithoutEventId
+    ? doc(db, COLLECTION_NAME, id)
+    : doc(db, EVENTS_COLLECTION_NAME, event.id, COLLECTION_NAME, id);
 
 const toRegistration = (id: string, data: Record<string, unknown>): Registration => {
   const createdAtValue = data.createdAt;
@@ -135,6 +154,7 @@ const toRegistration = (id: string, data: Record<string, unknown>): Registration
 
   return {
     id,
+    eventId: String(data.eventId ?? ''),
     createdAt,
     dorsal: String(data.dorsal ?? ''),
     status: (data.status as RegistrationStatus) ?? 'pending',
@@ -220,23 +240,78 @@ const getNextDorsal = (registrations: Registration[]) => {
   return String(next).padStart(3, '0');
 };
 
+const normalizeEvent = (id: string, data: Partial<EventConfig>): EventConfig => {
+  const fallback = getEventById(id);
+  return {
+    ...fallback,
+    ...data,
+    id,
+    distances: Array.isArray(data.distances) && data.distances.length > 0 ? data.distances : fallback.distances,
+    capacityLimit: typeof data.capacityLimit === 'number' ? data.capacityLimit : null,
+    acceptsRegistrations: Boolean(data.acceptsRegistrations),
+    legacyWithoutEventId: Boolean(data.legacyWithoutEventId),
+  };
+};
+
 export const RegistrationProvider = ({ children }: PropsWithChildren) => {
+  const [activeEventId, setActiveEventId] = useState(CURRENT_EVENT_ID);
+  const [events, setEvents] = useState<EventConfig[]>(EVENTS);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const activeEvent = useMemo(
+    () => events.find((event) => event.id === activeEventId) ?? events[0] ?? getEventById(CURRENT_EVENT_ID),
+    [activeEventId, events]
+  );
 
   useEffect(() => {
-    const registrationsRef = query(
-      collection(db, COLLECTION_NAME),
-      orderBy('createdAt', 'desc')
+    const unsubscribe = onSnapshot(
+      collection(db, EVENTS_COLLECTION_NAME),
+      (snapshot) => {
+        const remoteEvents = snapshot.docs.map((document) => normalizeEvent(document.id, document.data() as Partial<EventConfig>));
+        const merged = [
+          ...remoteEvents,
+          ...EVENTS.filter((defaultEvent) => !remoteEvents.some((remoteEvent) => remoteEvent.id === defaultEvent.id)),
+        ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        setEvents(merged);
+
+        const liveEvent = merged.find((event) => event.status === 'active' && event.acceptsRegistrations);
+        const selectedEvent = merged.find((event) => event.id === activeEventId);
+        if (!selectedEvent || (activeEventId === CURRENT_EVENT_ID && liveEvent && liveEvent.id !== CURRENT_EVENT_ID)) {
+          const nextEvent = liveEvent ?? merged[0];
+          if (nextEvent) setActiveEventId(nextEvent.id);
+        }
+      },
+      (err) => {
+        console.warn('No se pudieron cargar los eventos desde Firestore. Usando eventos locales.', err);
+      }
     );
+
+    return () => unsubscribe();
+  }, [activeEventId]);
+
+  useEffect(() => {
+    setIsLoading(true);
+    const registrationsCollection = getRegistrationsCollectionRef(activeEvent);
+    const registrationsRef = activeEvent.legacyWithoutEventId
+      ? query(registrationsCollection)
+      : query(registrationsCollection);
 
     const unsubscribe = onSnapshot(
       registrationsRef,
       (snapshot) => {
-        const docs = snapshot.docs.map((document) => toRegistration(document.id, document.data()));
+        const docs = snapshot.docs
+          .map((document) => toRegistration(document.id, document.data()))
+          .filter((registration) => {
+            if (activeEvent.legacyWithoutEventId) {
+              return !registration.eventId || registration.eventId === activeEvent.id;
+            }
+
+            return registration.eventId === activeEvent.id;
+          });
         if (import.meta.env.DEV) {
-          console.info(`[Firestore] Registrations recibidos: ${docs.length}`);
+          console.info(`[Firestore] ${activeEvent.id}: ${docs.length} registros recibidos`);
         }
         docs.sort((a, b) => {
           const dorsalA = parseInt(a.dorsal ?? '0', 10);
@@ -258,10 +333,14 @@ export const RegistrationProvider = ({ children }: PropsWithChildren) => {
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [activeEvent]);
 
   const addRegistration = useCallback(async (data: RegistrationInput) => {
-    if (typeof CAPACITY_LIMIT === 'number' && registrations.length >= CAPACITY_LIMIT) {
+    if (!activeEvent.acceptsRegistrations) {
+      throw new Error('Este evento es histórico y no acepta nuevas inscripciones.');
+    }
+
+    if (typeof activeEvent.capacityLimit === 'number' && registrations.length >= activeEvent.capacityLimit) {
       throw new Error('No hay cupos disponibles');
     }
 
@@ -280,7 +359,7 @@ export const RegistrationProvider = ({ children }: PropsWithChildren) => {
 
     const existingSnapshot = await getDocs(
       query(
-        collection(db, COLLECTION_NAME),
+        getRegistrationsCollectionRef(activeEvent),
         where('dniNormalized', '==', normalizedDni),
         limit(1)
       )
@@ -301,13 +380,14 @@ export const RegistrationProvider = ({ children }: PropsWithChildren) => {
     try {
       if (data.comprobanteFile) {
         comprobanteNombre = data.comprobanteFile.name;
-        comprobantePath = `comprobantes/${dorsal}-${timestamp}-${comprobanteNombre}`;
+        comprobantePath = `comprobantes/${activeEvent.id}/${dorsal}-${timestamp}-${comprobanteNombre}`;
         storageRef = ref(storage, comprobantePath);
         await uploadBytes(storageRef, data.comprobanteFile);
         comprobanteUrl = await getDownloadURL(storageRef);
       }
 
       const registro = {
+        eventId: data.eventId || activeEvent.id,
         nombre: data.nombre,
         dni: normalizedDni,
         dniNormalized: normalizedDni,
@@ -341,7 +421,7 @@ export const RegistrationProvider = ({ children }: PropsWithChildren) => {
         updatedBy: null,
       };
 
-      const docRef = await addDoc(collection(db, COLLECTION_NAME), registro);
+      const docRef = await addDoc(getRegistrationsCollectionRef(activeEvent), registro);
 
       return {
         id: docRef.id,
@@ -359,15 +439,15 @@ export const RegistrationProvider = ({ children }: PropsWithChildren) => {
       }
       throw error;
     }
-  }, [registrations]);
+  }, [activeEvent, registrations]);
 
   const updateRegistrationStatus = useCallback(async (id: string, status: RegistrationStatus, actor: string, overrides: Partial<Record<'checkedInAt' | 'checkedInBy', unknown>> = {}) => {
-    const documentRef = doc(db, COLLECTION_NAME, id);
+    const documentRef = getRegistrationDocumentRef(activeEvent, id);
     await updateDoc(documentRef, { status, ...overrides, updatedAt: serverTimestamp(), updatedBy: actor });
-  }, []);
+  }, [activeEvent]);
 
   const toggleCheckIn = useCallback(async (id: string, shouldCheckIn: boolean, actor: string) => {
-    const documentRef = doc(db, COLLECTION_NAME, id);
+    const documentRef = getRegistrationDocumentRef(activeEvent, id);
 
     if (shouldCheckIn) {
       await updateDoc(documentRef, {
@@ -384,10 +464,10 @@ export const RegistrationProvider = ({ children }: PropsWithChildren) => {
         updatedBy: actor,
       });
     }
-  }, []);
+  }, [activeEvent]);
 
   const updateRegistrationResult = useCallback(async (id: string, resultTime: string | null, actor: string) => {
-    const documentRef = doc(db, COLLECTION_NAME, id);
+    const documentRef = getRegistrationDocumentRef(activeEvent, id);
 
     let resultSeconds: number | null = null;
     let storedTime: string | null = null;
@@ -434,10 +514,10 @@ export const RegistrationProvider = ({ children }: PropsWithChildren) => {
       updatedAt: serverTimestamp(),
       updatedBy: actor,
     });
-  }, []);
+  }, [activeEvent]);
 
   const updateRegistrationData = useCallback(async (id: string, updates: RegistrationEditableFields, actor?: string) => {
-    const documentRef = doc(db, COLLECTION_NAME, id);
+    const documentRef = getRegistrationDocumentRef(activeEvent, id);
     const existing = registrations.find((participant) => participant.id === id);
 
     if (!existing) {
@@ -560,7 +640,7 @@ export const RegistrationProvider = ({ children }: PropsWithChildren) => {
       if (normalizedDni !== existing.dniNormalized) {
         const duplicateSnapshot = await getDocs(
           query(
-            collection(db, COLLECTION_NAME),
+            getRegistrationsCollectionRef(activeEvent),
             where('dniNormalized', '==', normalizedDni),
             limit(1)
           )
@@ -585,7 +665,27 @@ export const RegistrationProvider = ({ children }: PropsWithChildren) => {
       updatedAt: serverTimestamp(),
       updatedBy: actor || null,
     });
-  }, [registrations]);
+  }, [activeEvent, registrations]);
+
+  const createEvent = useCallback(async (event: EventConfig) => {
+    await setDoc(doc(db, EVENTS_COLLECTION_NAME, event.id), {
+      ...event,
+      updatedAt: serverTimestamp(),
+    });
+    setActiveEventId(event.id);
+  }, []);
+
+  const updateEvent = useCallback(async (eventId: string, event: Partial<EventConfig>) => {
+    await setDoc(
+      doc(db, EVENTS_COLLECTION_NAME, eventId),
+      {
+        ...event,
+        id: eventId,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+  }, []);
 
   const stats = useMemo(() => {
     const total = registrations.length;
@@ -593,8 +693,9 @@ export const RegistrationProvider = ({ children }: PropsWithChildren) => {
     const validated = registrations.filter((item) => item.status === 'validated').length;
     const rejected = registrations.filter((item) => item.status === 'rejected').length;
     const checkedIn = registrations.filter((item) => item.checkedInAt !== null).length;
-    const remaining = typeof CAPACITY_LIMIT === 'number' ? Math.max(CAPACITY_LIMIT - total, 0) : null;
-    const capacityFull = typeof CAPACITY_LIMIT === 'number' ? total >= CAPACITY_LIMIT : false;
+    const eventCapacity = activeEvent.capacityLimit;
+    const remaining = typeof eventCapacity === 'number' ? Math.max(eventCapacity - total, 0) : null;
+    const capacityFull = typeof eventCapacity === 'number' ? total >= eventCapacity : false;
 
     return {
       total,
@@ -602,14 +703,20 @@ export const RegistrationProvider = ({ children }: PropsWithChildren) => {
       validated,
       rejected,
       remaining,
-      max: CAPACITY_LIMIT,
+      max: eventCapacity,
       capacityFull,
       checkedIn,
     };
-  }, [registrations]);
+  }, [activeEvent.capacityLimit, registrations]);
 
   const value = useMemo(
     () => ({
+      events,
+      activeEvent,
+      activeEventId,
+      setActiveEventId,
+      createEvent,
+      updateEvent,
       registrations,
       stats,
       isLoading,
@@ -620,7 +727,7 @@ export const RegistrationProvider = ({ children }: PropsWithChildren) => {
       updateRegistrationResult,
       updateRegistrationData,
     }),
-    [registrations, stats, isLoading, error, addRegistration, updateRegistrationStatus, toggleCheckIn, updateRegistrationResult, updateRegistrationData]
+    [events, activeEvent, activeEventId, createEvent, updateEvent, registrations, stats, isLoading, error, addRegistration, updateRegistrationStatus, toggleCheckIn, updateRegistrationResult, updateRegistrationData]
   );
 
   return (

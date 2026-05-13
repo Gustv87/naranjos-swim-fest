@@ -2,15 +2,17 @@ import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Menu, X, Waves } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { useRegistrations } from '@/context/registration-context';
 
 export function Navigation() {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
+  const { activeEvent } = useRegistrations();
 
   const isActive = (path: string) => location.pathname === path;
 
-  const registrationClosed = useMemo(() => new Date() >= new Date('2025-10-08T23:59:59-06:00'), []);
-  const registrationClosedMessage = 'Las inscripciones cerraron el 8 de octubre de 2025 a las 23:59:59 (UTC-06).';
+  const registrationClosed = useMemo(() => new Date() >= new Date(activeEvent.registrationCloseDateTime), [activeEvent.registrationCloseDateTime]);
+  const registrationClosedMessage = `Las inscripciones cerraron el ${new Date(activeEvent.registrationCloseDateTime).toLocaleString('es-HN', { dateStyle: 'long', timeStyle: 'medium' })}.`;
 
   const navigation = [
     { name: 'Inicio', href: '/' },
@@ -26,7 +28,7 @@ export function Navigation() {
           <div className="flex items-center">
             <Link to="/" className="flex items-center space-x-2">
               <Waves className="h-8 w-8 text-primary" />
-              <span className="font-bold text-lg text-primary">Los Naranjos</span>
+              <span className="font-bold text-lg text-primary">{activeEvent.name}</span>
             </Link>
           </div>
 

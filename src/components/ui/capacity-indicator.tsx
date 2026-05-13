@@ -19,7 +19,7 @@ export function CapacityIndicator({ current, max = null, className = '' }: Capac
         </div>
         <Progress value={progressValue} className="h-2" />
         <div className="text-center text-sm font-medium text-lake-green">
-          Cupos ilimitados disponibles
+          Inscripciones abiertas
         </div>
       </div>
     );
