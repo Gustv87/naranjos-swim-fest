@@ -1,4 +1,4 @@
-import{c as Ut,r as z,j as r,f as fr,g as en,R as Re,b as tn,u as sn,o as rn,F as Ws,s as an,h as Vt,i as Rr,D as Ir,k as nn,l as on,m as ln,n as cn}from"./index-3phS7jMT.js";import{N as Xs,C as Je,a as Ye,b as Ge,c as dt,d as Js,l as ks}from"./card-CFtAYHTl.js";import{B as G,F as dn}from"./footer-B3Phdoz7.js";import{s as ut,I,S as un,D as Ys,a as Gs,b as Qs,c as Ks,d as er,g as hn,T as Or,e as tr,f as Fr,C as mn,h as fn,i as pn,p as gn}from"./registration-categories-OIm09DvH.js";import{L as D,S as as,a as ns,b as is,c as os,d as ht}from"./select-DwGIllM6.js";import{S as xn}from"./shield-CgbERike.js";import{F as sr,C as yn}from"./file-text-wKDWo59J.js";import{U as $r}from"./users-DjG1iFJz.js";import{C as vn}from"./circle-check-BBnfMP8v.js";/**
+import{c as Ut,r as z,j as r,f as fr,g as en,R as Re,b as tn,u as sn,o as rn,F as Ws,s as an,h as Vt,i as Rr,D as Ir,k as nn,l as on,m as ln,n as cn}from"./index-BJdP5i1e.js";import{N as Xs,C as Je,a as Ye,b as Ge,c as dt,d as Js,l as ks}from"./card-CxqtzEVg.js";import{B as G,F as dn}from"./footer-DUjzwweQ.js";import{s as ut,I,S as un,D as Ys,a as Gs,b as Qs,c as Ks,d as er,g as hn,T as Or,e as tr,f as Fr,C as mn,h as fn,i as pn,p as gn}from"./registration-categories-C8ljvx0d.js";import{L as D,S as as,a as ns,b as is,c as os,d as ht}from"./select-D1wGmOtR.js";import{S as xn}from"./shield-BthwCr8x.js";import{F as sr,C as yn}from"./file-text-BQI8xHq9.js";import{U as $r}from"./users-DCH8hiof.js";import{C as vn}from"./circle-check-BR8x7cxu.js";/**
  * @license lucide-react v0.462.0 - ISC
  *
  * This source code is licensed under the ISC license.
@@ -325,11 +325,13 @@ import{c as Ut,r as z,j as r,f as fr,g as en,R as Re,b as tn,u as sn,o as rn,F a
                 <td>${W(re.nombre)}</td>
                 <td>${W(It(re.nacimiento)??"N/A")}</td>
                 <td class="write-cell"></td>
+                <td class="write-cell"></td>
+                <td class="write-cell"></td>
                 <td class="notes-cell"></td>
               </tr>`:`
                 <tr class="empty-lane">
                   <td class="lane-cell">${$}</td>
-                  <td colspan="4">Carril libre</td>
+                  <td colspan="6">Carril libre</td>
                 </tr>`).join("");return`
             <section class="time-sheet">
               <div class="sheet-heading">
@@ -349,7 +351,9 @@ import{c as Ut,r as z,j as r,f as fr,g as en,R as Re,b as tn,u as sn,o as rn,F a
                     <th>Carril</th>
                     <th>Nadador</th>
                     <th>Edad</th>
-                    <th>Tiempo</th>
+                    <th>Tiempo 1</th>
+                    <th>Tiempo 2</th>
+                    <th>Tiempo 3</th>
                     <th>Observaciones</th>
                   </tr>
                 </thead>
@@ -436,12 +440,12 @@ import{c as Ut,r as z,j as r,f as fr,g as en,R as Re,b as tn,u as sn,o as rn,F a
             table {
               width: 100%;
               border-collapse: collapse;
-              font-size: 11px;
+              font-size: 10px;
               table-layout: fixed;
             }
             th, td {
               border: 1px solid #d1d5db;
-              padding: 7px;
+              padding: 4px 5px;
               text-align: left;
               vertical-align: middle;
             }
@@ -449,22 +453,25 @@ import{c as Ut,r as z,j as r,f as fr,g as en,R as Re,b as tn,u as sn,o as rn,F a
               background: #e5e7eb;
               font-weight: 700;
             }
-            th:nth-child(1), td:nth-child(1) { width: 48px; text-align: center; }
-            th:nth-child(3), td:nth-child(3) { width: 54px; text-align: center; }
-            th:nth-child(4), td:nth-child(4) { width: 150px; }
-            th:nth-child(5), td:nth-child(5) { width: 220px; }
+            th:nth-child(1), td:nth-child(1) { width: 5%; text-align: center; }
+            th:nth-child(2), td:nth-child(2) { width: 28%; }
+            th:nth-child(3), td:nth-child(3) { width: 6%; text-align: center; }
+            th:nth-child(4), td:nth-child(4) { width: 12%; }
+            th:nth-child(5), td:nth-child(5) { width: 12%; }
+            th:nth-child(6), td:nth-child(6) { width: 12%; }
+            th:nth-child(7), td:nth-child(7) { width: 25%; }
             .lane-cell {
-              font-size: 16px;
+              font-size: 14px;
               font-weight: 700;
             }
             .write-cell, .notes-cell {
-              height: 34px;
+              height: 22px;
               background: #fff;
             }
             .empty-lane td {
               color: #9ca3af;
               font-style: italic;
-              height: 34px;
+              height: 22px;
             }
             .nowrap {
               white-space: nowrap;
@@ -491,10 +498,12 @@ import{c as Ut,r as z,j as r,f as fr,g as en,R as Re,b as tn,u as sn,o as rn,F a
               <td>${W($.participant.nombre)}</td>
               <td class="age-cell">${W(It($.participant.nacimiento)??"N/A")}</td>
               <td class="write-cell"></td>
+              <td class="write-cell"></td>
+              <td class="write-cell"></td>
               <td class="notes-cell"></td>
             </tr>`).join(""):`
             <tr class="empty-lane">
-              <td colspan="7">Sin nadadores asignados a este carril.</td>
+              <td colspan="9">Sin nadadores asignados a este carril.</td>
             </tr>`;return`
         <section class="lane-sheet">
           <div class="sheet-heading">
@@ -515,7 +524,9 @@ import{c as Ut,r as z,j as r,f as fr,g as en,R as Re,b as tn,u as sn,o as rn,F a
                 <th>Heat</th>
                 <th>Nadador</th>
                 <th>Edad</th>
-                <th>Tiempo</th>
+                <th>Tiempo 1</th>
+                <th>Tiempo 2</th>
+                <th>Tiempo 3</th>
                 <th>Observaciones</th>
               </tr>
             </thead>
@@ -585,12 +596,12 @@ import{c as Ut,r as z,j as r,f as fr,g as en,R as Re,b as tn,u as sn,o as rn,F a
             table {
               width: 100%;
               border-collapse: collapse;
-              font-size: 11px;
+              font-size: 10px;
               table-layout: fixed;
             }
             th, td {
               border: 1px solid #d1d5db;
-              padding: 7px;
+              padding: 4px 5px;
               text-align: left;
               vertical-align: middle;
             }
@@ -598,20 +609,23 @@ import{c as Ut,r as z,j as r,f as fr,g as en,R as Re,b as tn,u as sn,o as rn,F a
               background: #e5e7eb;
               font-weight: 700;
             }
-            th:nth-child(1), td:nth-child(1) { width: 130px; }
-            th:nth-child(2), td:nth-child(2) { width: 130px; }
-            th:nth-child(3), td:nth-child(3) { width: 70px; text-align: center; }
-            th:nth-child(5), td:nth-child(5) { width: 54px; text-align: center; }
-            th:nth-child(6), td:nth-child(6) { width: 130px; }
-            th:nth-child(7), td:nth-child(7) { width: 220px; }
+            th:nth-child(1), td:nth-child(1) { width: 13%; }
+            th:nth-child(2), td:nth-child(2) { width: 13%; }
+            th:nth-child(3), td:nth-child(3) { width: 6%; text-align: center; }
+            th:nth-child(4), td:nth-child(4) { width: 24%; }
+            th:nth-child(5), td:nth-child(5) { width: 5%; text-align: center; }
+            th:nth-child(6), td:nth-child(6) { width: 9%; }
+            th:nth-child(7), td:nth-child(7) { width: 9%; }
+            th:nth-child(8), td:nth-child(8) { width: 9%; }
+            th:nth-child(9), td:nth-child(9) { width: 12%; }
             .write-cell, .notes-cell {
-              height: 34px;
+              height: 22px;
               background: #fff;
             }
             .empty-lane td {
               color: #9ca3af;
               font-style: italic;
-              height: 34px;
+              height: 22px;
             }
             ${ws}
             @media print {
