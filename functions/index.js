@@ -1,9 +1,9 @@
-import { initializeApp } from 'firebase-admin/app';
-import { FieldValue, getFirestore } from 'firebase-admin/firestore';
-import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
-import { defineSecret } from 'firebase-functions/params';
-import { logger } from 'firebase-functions';
-import nodemailer from 'nodemailer';
+const { initializeApp } = require('firebase-admin/app');
+const { FieldValue, getFirestore } = require('firebase-admin/firestore');
+const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore');
+const { defineSecret } = require('firebase-functions/params');
+const logger = require('firebase-functions/logger');
+const nodemailer = require('nodemailer');
 
 initializeApp();
 
@@ -193,7 +193,7 @@ const handleRegistrationCreated = async (event) => {
   }
 ;
 
-export const sendRegistrationReceivedEmail = onDocumentCreated(
+const sendRegistrationReceivedEmail = onDocumentCreated(
   {
     document: 'registrations/{registrationId}',
     secrets: [mailUser, mailPass],
@@ -202,7 +202,7 @@ export const sendRegistrationReceivedEmail = onDocumentCreated(
   handleRegistrationCreated
 );
 
-export const sendEventRegistrationReceivedEmail = onDocumentCreated(
+const sendEventRegistrationReceivedEmail = onDocumentCreated(
   {
     document: 'events/{eventId}/registrations/{registrationId}',
     secrets: [mailUser, mailPass],
@@ -267,7 +267,7 @@ const handleRegistrationUpdatedForValidation = async (event) => {
   }
 ;
 
-export const sendRegistrationValidatedEmail = onDocumentUpdated(
+const sendRegistrationValidatedEmail = onDocumentUpdated(
   {
     document: 'registrations/{registrationId}',
     secrets: [mailUser, mailPass],
@@ -276,7 +276,7 @@ export const sendRegistrationValidatedEmail = onDocumentUpdated(
   handleRegistrationUpdatedForValidation
 );
 
-export const sendEventRegistrationValidatedEmail = onDocumentUpdated(
+const sendEventRegistrationValidatedEmail = onDocumentUpdated(
   {
     document: 'events/{eventId}/registrations/{registrationId}',
     secrets: [mailUser, mailPass],
@@ -343,7 +343,7 @@ const handleRegistrationUpdatedForCheckIn = async (event) => {
   }
 ;
 
-export const sendCheckInEmail = onDocumentUpdated(
+const sendCheckInEmail = onDocumentUpdated(
   {
     document: 'registrations/{registrationId}',
     secrets: [mailUser, mailPass],
@@ -352,7 +352,7 @@ export const sendCheckInEmail = onDocumentUpdated(
   handleRegistrationUpdatedForCheckIn
 );
 
-export const sendEventCheckInEmail = onDocumentUpdated(
+const sendEventCheckInEmail = onDocumentUpdated(
   {
     document: 'events/{eventId}/registrations/{registrationId}',
     secrets: [mailUser, mailPass],
@@ -360,3 +360,12 @@ export const sendEventCheckInEmail = onDocumentUpdated(
   },
   handleRegistrationUpdatedForCheckIn
 );
+
+module.exports = {
+  sendRegistrationReceivedEmail,
+  sendEventRegistrationReceivedEmail,
+  sendRegistrationValidatedEmail,
+  sendEventRegistrationValidatedEmail,
+  sendCheckInEmail,
+  sendEventCheckInEmail,
+};
