@@ -1,14 +1,38 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function optionalString(data, field) {
+      return data.get(field, null) == null || data.get(field, null) is string;
+    }
+
+    function optionalNumber(data, field) {
+      return data.get(field, null) == null || data.get(field, null) is number;
+    }
+
+    function optionalTimestamp(data, field) {
+      return data.get(field, null) == null || data.get(field, null) is timestamp;
+    }
+
+    function optionalMap(data, field) {
+      return data.get(field, null) == null || data.get(field, null) is map;
+    }
+
+    function optionalList(data, field) {
+      return data.get(field, null) == null || data.get(field, null) is list;
+    }
+
+    function isSignedInAdmin() {
+      return request.auth != null && request.auth.token.email is string;
+    }
+
     match /registrations/{registrationId} {
       function allowedKeys(data) {
         return data.keys().hasOnly([
-          'eventId', 'nombre', 'dni', 'nacimiento', 'email', 'telefono', 'club', 'distancia', 'sexo',
+          'eventId', 'nombre', 'dni', 'nacimiento', 'pais', 'nacionalidad', 'email', 'telefono', 'club', 'distancia', 'sexo',
           'categoria', 'emergenciaNombre', 'emergenciaTel', 'medico', 'banco', 'monto',
           'referencia', 'tallaCamisa', 'comprobanteNombre', 'comprobanteUrl', 'comprobantePath',
           'dorsal', 'status', 'createdAt', 'checkedInAt', 'checkedInBy', 'dniNormalized',
-          'resultTime', 'resultSeconds', 'resultRecordedAt', 'resultRecordedBy', 'updatedAt', 'updatedBy',
+          'resultTime', 'resultSeconds', 'resultRecordedAt', 'resultRecordedBy', 'resultsByDistance', 'updatedAt', 'updatedBy',
           'registrationEmailSentAt', 'registrationEmailTo',
           'validationEmailSentAt', 'validationEmailTo',
           'checkInEmailSentAt', 'checkInEmailTo'
@@ -19,27 +43,31 @@ service cloud.firestore {
 
       allow create: if allowedKeys(request.resource.data)
         && request.resource.data.status == 'pending'
-        && request.resource.data.eventId is string;
+        && request.resource.data.eventId is string
+        && request.resource.data.pais is string;
 
       allow update: if allowedKeys(request.resource.data)
         && request.resource.data.diff(resource.data).changedKeys().hasOnly([
-          'nombre', 'dni', 'dniNormalized', 'nacimiento', 'email', 'telefono', 'club',
+          'nombre', 'dni', 'dniNormalized', 'nacimiento', 'pais', 'nacionalidad', 'email', 'telefono', 'club',
           'distancia', 'sexo', 'categoria', 'emergenciaNombre', 'emergenciaTel', 'medico',
           'banco', 'monto', 'referencia', 'tallaCamisa', 'dorsal',
           'status', 'checkedInAt', 'checkedInBy',
-          'resultTime', 'resultSeconds', 'resultRecordedAt', 'resultRecordedBy',
+          'resultTime', 'resultSeconds', 'resultRecordedAt', 'resultRecordedBy', 'resultsByDistance',
           'updatedAt', 'updatedBy'
         ])
-        && (request.resource.data.checkedInAt == null || request.resource.data.checkedInAt is timestamp)
-        && (request.resource.data.checkedInBy == null || request.resource.data.checkedInBy is string)
-        && (request.resource.data.resultRecordedAt == null || request.resource.data.resultRecordedAt is timestamp)
-        && (request.resource.data.resultRecordedBy == null || request.resource.data.resultRecordedBy is string)
-        && (request.resource.data.resultTime == null || request.resource.data.resultTime is string)
-        && (request.resource.data.resultSeconds == null || request.resource.data.resultSeconds is number)
-        && (request.resource.data.eventId == null || request.resource.data.eventId is string)
-        && (request.resource.data.dniNormalized == null || request.resource.data.dniNormalized is string)
-        && (request.resource.data.updatedAt == null || request.resource.data.updatedAt is timestamp)
-        && (request.resource.data.updatedBy == null || request.resource.data.updatedBy is string);
+        && optionalTimestamp(request.resource.data, 'checkedInAt')
+        && optionalString(request.resource.data, 'checkedInBy')
+        && optionalTimestamp(request.resource.data, 'resultRecordedAt')
+        && optionalString(request.resource.data, 'resultRecordedBy')
+        && optionalString(request.resource.data, 'resultTime')
+        && optionalNumber(request.resource.data, 'resultSeconds')
+        && optionalMap(request.resource.data, 'resultsByDistance')
+        && optionalString(request.resource.data, 'eventId')
+        && optionalString(request.resource.data, 'pais')
+        && optionalString(request.resource.data, 'nacionalidad')
+        && optionalString(request.resource.data, 'dniNormalized')
+        && optionalTimestamp(request.resource.data, 'updatedAt')
+        && optionalString(request.resource.data, 'updatedBy');
 
       allow delete: if false;
     }
@@ -48,19 +76,28 @@ service cloud.firestore {
       function allowedEventKeys(data) {
         return data.keys().hasOnly([
           'id', 'name', 'date', 'dateTime', 'registrationOpenDateTime', 'registrationCloseDateTime',
-          'location', 'locationShort', 'price', 'paymentInfo', 'capacityLimit', 'distances',
-          'status', 'acceptsRegistrations', 'legacyWithoutEventId', 'updatedAt'
+          'location', 'locationShort', 'price', 'paymentInfo', 'posterImageUrl', 'capacityLimit', 'distances',
+          'courseType', 'status', 'acceptsRegistrations', 'registrationsManuallyClosed',
+          'allowMultipleDistances', 'legacyWithoutEventId', 'publishedResultEventKeys', 'updatedAt'
         ]);
       }
 
       match /registrations/{registrationId} {
+        function eventAllowsRegistrationCreate() {
+          return !exists(/databases/$(database)/documents/events/$(eventId))
+            || (
+              get(/databases/$(database)/documents/events/$(eventId)).data.acceptsRegistrations == true
+              && get(/databases/$(database)/documents/events/$(eventId)).data.registrationsManuallyClosed != true
+            );
+        }
+
         function allowedKeys(data) {
           return data.keys().hasOnly([
-            'eventId', 'nombre', 'dni', 'nacimiento', 'email', 'telefono', 'club', 'distancia', 'sexo',
+            'eventId', 'nombre', 'dni', 'nacimiento', 'pais', 'nacionalidad', 'email', 'telefono', 'club', 'distancia', 'sexo',
             'categoria', 'emergenciaNombre', 'emergenciaTel', 'medico', 'banco', 'monto',
             'referencia', 'tallaCamisa', 'comprobanteNombre', 'comprobanteUrl', 'comprobantePath',
             'dorsal', 'status', 'createdAt', 'checkedInAt', 'checkedInBy', 'dniNormalized',
-            'resultTime', 'resultSeconds', 'resultRecordedAt', 'resultRecordedBy', 'updatedAt', 'updatedBy',
+            'resultTime', 'resultSeconds', 'resultRecordedAt', 'resultRecordedBy', 'resultsByDistance', 'updatedAt', 'updatedBy',
             'registrationEmailSentAt', 'registrationEmailTo',
             'validationEmailSentAt', 'validationEmailTo',
             'checkInEmailSentAt', 'checkInEmailTo'
@@ -71,27 +108,32 @@ service cloud.firestore {
 
         allow create: if allowedKeys(request.resource.data)
           && request.resource.data.status == 'pending'
-          && request.resource.data.eventId == eventId;
+          && request.resource.data.eventId == eventId
+          && request.resource.data.pais is string
+          && (eventAllowsRegistrationCreate() || isSignedInAdmin());
 
         allow update: if allowedKeys(request.resource.data)
           && request.resource.data.eventId == eventId
           && request.resource.data.diff(resource.data).changedKeys().hasOnly([
-            'nombre', 'dni', 'dniNormalized', 'nacimiento', 'email', 'telefono', 'club',
+            'nombre', 'dni', 'dniNormalized', 'nacimiento', 'pais', 'nacionalidad', 'email', 'telefono', 'club',
             'distancia', 'sexo', 'categoria', 'emergenciaNombre', 'emergenciaTel', 'medico',
             'banco', 'monto', 'referencia', 'tallaCamisa', 'dorsal',
             'status', 'checkedInAt', 'checkedInBy',
-            'resultTime', 'resultSeconds', 'resultRecordedAt', 'resultRecordedBy',
+            'resultTime', 'resultSeconds', 'resultRecordedAt', 'resultRecordedBy', 'resultsByDistance',
             'updatedAt', 'updatedBy'
           ])
-          && (request.resource.data.checkedInAt == null || request.resource.data.checkedInAt is timestamp)
-          && (request.resource.data.checkedInBy == null || request.resource.data.checkedInBy is string)
-          && (request.resource.data.resultRecordedAt == null || request.resource.data.resultRecordedAt is timestamp)
-          && (request.resource.data.resultRecordedBy == null || request.resource.data.resultRecordedBy is string)
-          && (request.resource.data.resultTime == null || request.resource.data.resultTime is string)
-          && (request.resource.data.resultSeconds == null || request.resource.data.resultSeconds is number)
-          && (request.resource.data.dniNormalized == null || request.resource.data.dniNormalized is string)
-          && (request.resource.data.updatedAt == null || request.resource.data.updatedAt is timestamp)
-          && (request.resource.data.updatedBy == null || request.resource.data.updatedBy is string);
+          && optionalTimestamp(request.resource.data, 'checkedInAt')
+          && optionalString(request.resource.data, 'checkedInBy')
+          && optionalTimestamp(request.resource.data, 'resultRecordedAt')
+          && optionalString(request.resource.data, 'resultRecordedBy')
+          && optionalString(request.resource.data, 'resultTime')
+          && optionalNumber(request.resource.data, 'resultSeconds')
+          && optionalMap(request.resource.data, 'resultsByDistance')
+          && optionalString(request.resource.data, 'pais')
+          && optionalString(request.resource.data, 'nacionalidad')
+          && optionalString(request.resource.data, 'dniNormalized')
+          && optionalTimestamp(request.resource.data, 'updatedAt')
+          && optionalString(request.resource.data, 'updatedBy');
 
         allow delete: if false;
       }
@@ -106,9 +148,14 @@ service cloud.firestore {
         && request.resource.data.location is string
         && request.resource.data.price is string
         && request.resource.data.paymentInfo is string
+        && (request.resource.data.posterImageUrl == null || request.resource.data.posterImageUrl is string)
         && request.resource.data.distances is list
+        && (request.resource.data.courseType == null || request.resource.data.courseType in ['open_water', 'pool'])
         && request.resource.data.status in ['active', 'past']
         && request.resource.data.acceptsRegistrations is bool
+        && (request.resource.data.registrationsManuallyClosed == null || request.resource.data.registrationsManuallyClosed is bool)
+        && (request.resource.data.allowMultipleDistances == null || request.resource.data.allowMultipleDistances is bool)
+        && optionalList(request.resource.data, 'publishedResultEventKeys')
         && (request.resource.data.capacityLimit == null || request.resource.data.capacityLimit is number)
         && (request.resource.data.updatedAt == null || request.resource.data.updatedAt is timestamp);
       allow delete: if false;

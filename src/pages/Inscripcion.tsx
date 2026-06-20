@@ -8,6 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+import { PaymentDetails } from '@/components/payment-details';
+import { CountryCombobox } from '@/components/country-combobox';
 import {
   Dialog,
   DialogContent,
@@ -18,13 +20,32 @@ import {
 } from '@/components/ui/dialog';
 import { CapacityIndicator } from '@/components/ui/capacity-indicator';
 import { useRegistrations } from '@/context/registration-context';
-import { useEffect, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useState, type ChangeEvent } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Upload, CheckCircle2, AlertCircle } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import {
+  AGE_BASED_REGISTRATION_FEE_TEXT,
+  calculateAgeOnEvent,
+  calculateRegistrationFee,
+  calculateRegistrationCategory,
+  formatRegistrationFee,
+  getParticipantDocumentLabel,
+  isHonduranParticipant,
+  normalizeParticipantDocument,
+  splitRegistrationDistances,
+  validateParticipantDocument,
+} from '@/lib/registration-categories';
+import { getEventRegistrationStatus } from '@/config/event';
 
 const MAX_COMPROBANTE_SIZE_MB = 15;
 const MAX_COMPROBANTE_SIZE_BYTES = MAX_COMPROBANTE_SIZE_MB * 1024 * 1024;
+
+const formatDateTime = (value: string) =>
+  new Date(value).toLocaleString('es-HN', {
+    dateStyle: 'long',
+    timeStyle: 'short',
+  });
 
 const Inscripcion = () => {
   useEffect(() => {
@@ -33,7 +54,8 @@ const Inscripcion = () => {
 
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { addRegistration, stats, activeEvent, isLoading: isRegistrationsLoading } = useRegistrations();
+  const { eventId } = useParams();
+  const { addRegistration, stats, activeEvent, setActiveEventId, events, isLoading: isRegistrationsLoading } = useRegistrations();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [acceptedRules, setAcceptedRules] = useState(false);
   const [successRegistration, setSuccessRegistration] = useState<{
@@ -44,17 +66,28 @@ const Inscripcion = () => {
 
   const currentParticipants = stats.total;
   const maxParticipants = stats.max;
-  const isRegistrationOpen =
-    activeEvent.acceptsRegistrations &&
-    new Date() >= new Date(activeEvent.registrationOpenDateTime) &&
-    new Date() < new Date(activeEvent.registrationCloseDateTime);
+  const registrationStatus = getEventRegistrationStatus(activeEvent);
+  const isRegistrationOpen = registrationStatus.isOpen;
   const isCapacityFull = stats.capacityFull;
   const isCapacityDataLoading = isRegistrationsLoading;
+  const closedTitle = registrationStatus.reason === 'manual'
+    ? 'Inscripciones Bloqueadas'
+    : registrationStatus.reason === 'before'
+      ? 'Inscripciones Próximamente'
+      : 'Inscripciones Cerradas';
+  const closedDescription = registrationStatus.reason === 'manual'
+    ? 'La organización cerró manualmente las inscripciones para este evento.'
+    : registrationStatus.reason === 'before'
+      ? `Las inscripciones abrirán el ${formatDateTime(activeEvent.registrationOpenDateTime)}.`
+      : registrationStatus.reason === 'after'
+        ? `El período de inscripciones terminó el ${formatDateTime(activeEvent.registrationCloseDateTime)}.`
+        : 'Este evento ya no acepta nuevas inscripciones.';
 
   const [formData, setFormData] = useState({
     nombre: '',
     dni: '',
     nacimiento: '',
+    pais: 'Honduras',
     email: '',
     telefono: '',
     club: '',
@@ -74,53 +107,44 @@ const Inscripcion = () => {
 
   const goHomeAfterSuccess = () => {
     setSuccessRegistration(null);
-    navigate('/');
+    navigate(`/eventos/${activeEvent.id}`);
   };
 
   const bancos = [
     'BAC Honduras',
+    'Promerica',
   ];
 
   const tallasCamisa = [
     '12','14','16','XS', 'S', 'M', 'L', 'XL', 'XXL'
   ];
 
-  const EVENT_DATE = new Date(activeEvent.date);
+  useEffect(() => {
+    if (eventId && events.some((event) => event.id === eventId) && activeEvent.id !== eventId) {
+      setActiveEventId(eventId);
+    }
+  }, [activeEvent.id, eventId, events, setActiveEventId]);
+
+  const calculatePaymentAmount = useCallback((birthDate: string, country: string): string => {
+    if (activeEvent.courseType !== 'open_water') return activeEvent.price;
+    return calculateRegistrationFee(birthDate, activeEvent.date, activeEvent.price, country);
+  }, [activeEvent.courseType, activeEvent.date, activeEvent.price]);
 
   useEffect(() => {
-    setFormData((prev) => ({ ...prev, monto: activeEvent.price }));
-  }, [activeEvent.price]);
+    setFormData((prev) => ({ ...prev, monto: calculatePaymentAmount(prev.nacimiento, prev.pais) }));
+  }, [calculatePaymentAmount]);
 
   const getAgeOnEvent = (birthDate: string): number | null => {
-    if (!birthDate) return null;
-
-    const birth = new Date(birthDate);
-    if (Number.isNaN(birth.getTime())) return null;
-
-    let age = EVENT_DATE.getFullYear() - birth.getFullYear();
-    const hasHadBirthday =
-      EVENT_DATE.getMonth() > birth.getMonth() ||
-      (EVENT_DATE.getMonth() === birth.getMonth() && EVENT_DATE.getDate() >= birth.getDate());
-
-    if (!hasHadBirthday) {
-      age -= 1;
-    }
-
-    return age;
+    return calculateAgeOnEvent(birthDate, activeEvent.date);
   };
 
-  const calculateCategory = (birthDate: string, distance: string): string => {
-    if (!birthDate || !distance) return '';
+  const getSelectedDistances = splitRegistrationDistances;
 
-    const age = getAgeOnEvent(birthDate);
-    if (age === null) return '';
+  const getDistanceLabel = (distanceValue: string) =>
+    activeEvent.distances.find((distance) => distance.value === distanceValue)?.label ?? distanceValue;
 
-    const distanceConfig = activeEvent.distances.find((item) => item.value === distance);
-    if (!distanceConfig) return '';
-
-    return distanceConfig.categories.find((category) =>
-      age >= category.minAge && (category.maxAge === null || age <= category.maxAge)
-    )?.label ?? '';
+  const calculateCategory = (birthDate: string, distance = activeEvent.distances[0]?.value ?? ''): string => {
+    return calculateRegistrationCategory(birthDate, distance, activeEvent);
   };
 
   const validateAgeForInputs = (birthDate: string, distance: string) => {
@@ -143,39 +167,53 @@ const Inscripcion = () => {
       return;
     }
 
-    const distanceConfig = activeEvent.distances.find((item) => item.value === distance);
-    if (!distanceConfig) {
+    const selectedDistances = getSelectedDistances(distance);
+    const invalidDistance = selectedDistances
+      .map((selected) => activeEvent.distances.find((item) => item.value === selected))
+      .find((item) => item && age < item.minAge);
+
+    if (!invalidDistance) {
       setBirthDateError('');
       return;
     }
 
-    if (age < distanceConfig.minAge) {
-      setBirthDateError('Esta edad no es permitida para participar.');
-      return;
-    }
-
-    setBirthDateError('');
+    setBirthDateError(`Tu edad no permite participar en ${invalidDistance.label}.`);
   };
 
   const handleBirthDateChange = (value: string) => {
     setFormData(prev => {
-      const next = { ...prev, nacimiento: value };
+      const next = { ...prev, nacimiento: value, monto: calculatePaymentAmount(value, prev.pais) };
       const age = getAgeOnEvent(value);
 
       if (age !== null) {
         const minimumEventAge = Math.min(...activeEvent.distances.map((distance) => distance.minAge));
-        const selectedDistance = activeEvent.distances.find((distance) => distance.value === next.distancia);
+        const selectedDistances = getSelectedDistances(next.distancia);
 
         if (age < minimumEventAge) {
           next.distancia = '';
-        } else if (selectedDistance && age < selectedDistance.minAge) {
-          next.distancia = '';
+        } else if (selectedDistances.length) {
+          next.distancia = selectedDistances
+            .filter((selected) => {
+              const distanceConfig = activeEvent.distances.find((distance) => distance.value === selected);
+              return distanceConfig && age >= distanceConfig.minAge;
+            })
+            .join(', ');
         }
       }
 
       validateAgeForInputs(next.nacimiento, next.distancia);
       return next;
     });
+  };
+
+  const handleCountryChange = (value: string) => {
+    setDniError('');
+    setFormData((prev) => ({
+      ...prev,
+      pais: value,
+      dni: isHonduranParticipant(value) ? prev.dni.replace(/\D/g, '').slice(0, 13) : prev.dni,
+      monto: calculatePaymentAmount(prev.nacimiento, value),
+    }));
   };
 
   const handleComprobanteChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -206,7 +244,7 @@ const Inscripcion = () => {
       return;
     }
 
-    if (!formData.tallaCamisa) {
+    if (!activeEvent.allowMultipleDistances && !formData.tallaCamisa) {
       toast({
         variant: "destructive",
         title: "Error",
@@ -215,23 +253,24 @@ const Inscripcion = () => {
       return;
     }
 
-    const sanitizedDni = formData.dni.replace(/\D/g, '');
+    const documentError = validateParticipantDocument(formData.dni, formData.pais);
 
-    if (sanitizedDni.length !== 13) {
-      const message = 'El número de identidad debe tener 13 dígitos sin guiones.';
+    if (documentError) {
+      const message = documentError;
       setDniError(message);
       toast({
         variant: "destructive",
-        title: "DNI inválido",
+        title: "Documento inválido",
         description: message,
       });
       return;
     }
 
     setDniError('');
+    const sanitizedDni = normalizeParticipantDocument(formData.dni, formData.pais);
 
     const age = getAgeOnEvent(formData.nacimiento);
-    const distance = formData.distancia;
+    const selectedDistances = getSelectedDistances(formData.distancia);
 
     if (age === null) {
       toast({
@@ -253,23 +292,24 @@ const Inscripcion = () => {
       return;
     }
 
-    const distanceConfig = activeEvent.distances.find((item) => item.value === distance);
-    if (!distanceConfig) {
+    const invalidDistances = selectedDistances
+      .map((selected) => activeEvent.distances.find((item) => item.value === selected))
+      .filter((item): item is typeof activeEvent.distances[number] => Boolean(item) && age < item.minAge);
+
+    if (!selectedDistances.length || selectedDistances.some((selected) => !activeEvent.distances.some((item) => item.value === selected))) {
       toast({
         variant: "destructive",
-        title: "Distancia inválida",
-        description: "Selecciona una distancia disponible.",
+        title: activeEvent.allowMultipleDistances ? "Pruebas inválidas" : "Distancia inválida",
+        description: activeEvent.allowMultipleDistances ? "Selecciona al menos una prueba disponible." : "Selecciona una distancia disponible.",
       });
       return;
     }
 
-    const minAge = distanceConfig.minAge;
-
-    if (age < minAge) {
+    if (invalidDistances.length) {
       toast({
         variant: "destructive",
         title: "Edad no permitida",
-        description: `La edad mínima para ${distanceConfig.label} es de ${minAge} años.`,
+        description: `Tu edad no permite participar en ${invalidDistances.map((item) => item.label).join(', ')}.`,
       });
       setBirthDateError('Esta edad no es permitida para participar.');
       return;
@@ -280,8 +320,8 @@ const Inscripcion = () => {
     if (!isRegistrationOpen) {
       toast({
         variant: "destructive",
-        title: "Inscripciones cerradas",
-        description: "El período de inscripciones ha terminado",
+        title: closedTitle,
+        description: closedDescription,
       });
       return;
     }
@@ -315,13 +355,13 @@ const Inscripcion = () => {
     setIsSubmitting(true);
 
     try {
-      const categoria = calculateCategory(formData.nacimiento, formData.distancia);
+      const categoria = calculateCategory(formData.nacimiento, selectedDistances[0]);
 
       if (!categoria) {
         toast({
           variant: "destructive",
           title: "Error",
-          description: "No pudimos determinar tu categoría. Verifica tu fecha de nacimiento y distancia.",
+          description: "No pudimos determinar tu categoría. Verifica tu fecha de nacimiento.",
         });
         return;
       }
@@ -330,6 +370,7 @@ const Inscripcion = () => {
         nombre: formData.nombre.trim(),
         dni: sanitizedDni,
         nacimiento: formData.nacimiento,
+        pais: formData.pais.trim(),
         email: formData.email.trim(),
         telefono: formData.telefono.trim(),
         club: formData.club.trim(),
@@ -340,7 +381,7 @@ const Inscripcion = () => {
         emergenciaTel: formData.emergenciaTel.trim(),
         medico: formData.medico.trim(),
         banco: formData.banco,
-        monto: formData.monto.trim(),
+        monto: calculatePaymentAmount(formData.nacimiento, formData.pais),
         referencia: formData.referencia.trim(),
         tallaCamisa: formData.tallaCamisa,
         comprobanteFile: formData.comprobante,
@@ -361,6 +402,7 @@ const Inscripcion = () => {
         nombre: '',
         dni: '',
         nacimiento: '',
+        pais: 'Honduras',
         email: '',
         telefono: '',
         club: '',
@@ -370,7 +412,7 @@ const Inscripcion = () => {
         emergenciaTel: '',
         medico: '',
         banco: '',
-        monto: activeEvent.price,
+        monto: calculatePaymentAmount('', 'Honduras'),
         referencia: '',
         tallaCamisa: '',
         comprobante: null
@@ -390,7 +432,7 @@ const Inscripcion = () => {
           description = error.message;
         }
       } else if (error instanceof Error) {
-        if (error.message.toLowerCase().includes('dni')) {
+        if (error.message.toLowerCase().includes('dni') || error.message.toLowerCase().includes('documento')) {
           setDniError(error.message);
         }
         description = error.message === 'No hay cupos disponibles'
@@ -409,43 +451,61 @@ const Inscripcion = () => {
   };
 
   const participantAge = getAgeOnEvent(formData.nacimiento);
+  const paymentAmount = calculatePaymentAmount(formData.nacimiento, formData.pais);
+  const isHonduran = isHonduranParticipant(formData.pais);
+  const documentLabel = getParticipantDocumentLabel(formData.pais);
   const isDistanceDisabled = (distanceValue: string) => {
     const minAge = activeEvent.distances.find((distance) => distance.value === distanceValue)?.minAge ?? 9;
     return participantAge !== null && participantAge < minAge;
   };
+  const selectedDistances = getSelectedDistances(formData.distancia);
+  const selectedDistanceLabels = selectedDistances.map(getDistanceLabel);
+
+  const handleDistanceToggle = (distanceValue: string, checked: boolean) => {
+    setFormData((prev) => {
+      const current = getSelectedDistances(prev.distancia);
+      const nextDistances = checked
+        ? Array.from(new Set([...current, distanceValue]))
+        : current.filter((value) => value !== distanceValue);
+      const next = { ...prev, distancia: nextDistances.join(', ') };
+      validateAgeForInputs(next.nacimiento, next.distancia);
+      return next;
+    });
+  };
 
   if (!isRegistrationOpen && !isCapacityFull) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background flex flex-col">
         <Navigation />
-        <div className="max-w-2xl mx-auto px-4 py-16">
+        <div className="flex-1 max-w-2xl mx-auto px-4 py-16">
           <Card className="text-center">
             <CardHeader>
               <AlertCircle className="h-16 w-16 text-destructive mx-auto mb-4" />
-              <CardTitle className="text-2xl">Inscripciones Cerradas</CardTitle>
+              <CardTitle className="text-2xl">{closedTitle}</CardTitle>
               <CardDescription className="text-lg">
-                El período de inscripciones terminó el 7 de agosto de 2026
+                {closedDescription}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Link to="/">
+              <Link to={`/eventos/${activeEvent.id}`}>
                 <Button>
                   <ArrowLeft className="mr-2 h-4 w-4" />
-                  Volver al inicio
+                  Volver al evento
                 </Button>
               </Link>
             </CardContent>
           </Card>
         </div>
+        <FooterGM />
       </div>
     );
   }
 
   if (isCapacityFull) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background flex flex-col">
         <Navigation />
-        <div className="max-w-2xl mx-auto px-4 py-16">
+        <div className="flex-1 max-w-2xl mx-auto px-4 py-16">
           <Card className="text-center">
             <CardHeader>
               <AlertCircle className="h-16 w-16 text-destructive mx-auto mb-4" />
@@ -456,21 +516,22 @@ const Inscripcion = () => {
             </CardHeader>
             <CardContent>
               <CapacityIndicator current={currentParticipants} max={maxParticipants} className="mb-6" />
-              <Link to="/">
+              <Link to={`/eventos/${activeEvent.id}`}>
                 <Button>
                   <ArrowLeft className="mr-2 h-4 w-4" />
-                  Volver al inicio
+                  Volver al evento
                 </Button>
               </Link>
             </CardContent>
           </Card>
         </div>
+        <FooterGM />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <Navigation />
 
       <Dialog open={Boolean(successRegistration)} onOpenChange={(open) => {
@@ -505,18 +566,18 @@ const Inscripcion = () => {
               Entendido
             </Button>
             <Button type="button" variant="outline" asChild>
-              <Link to="/">Volver al inicio</Link>
+              <Link to={`/eventos/${activeEvent.id}`}>Volver al evento</Link>
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
       
-      <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="flex-1 max-w-4xl mx-auto px-4 py-8">
         <div className="mb-8">
-          <Link to="/">
+          <Link to={`/eventos/${activeEvent.id}`}>
             <Button variant="ghost">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Volver al inicio
+              Volver al evento
             </Button>
           </Link>
         </div>
@@ -550,19 +611,21 @@ const Inscripcion = () => {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="dni">Identidad/DNI *</Label>
+                <Label htmlFor="dni">{documentLabel} *</Label>
                 <Input
                   id="dni"
                   value={formData.dni}
                   onChange={(e) => {
-                    const value = e.target.value.replace(/\D/g, '').slice(0, 13);
+                    const value = isHonduran
+                      ? e.target.value.replace(/\D/g, '').slice(0, 13)
+                      : e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 20);
                     setDniError('');
                     setFormData(prev => ({ ...prev, dni: value }));
                   }}
                   required
-                  placeholder="0801199012345"
-                  inputMode="numeric"
-                  maxLength={13}
+                  placeholder={isHonduran ? '0801199012345' : 'Pasaporte o documento'}
+                  inputMode={isHonduran ? 'numeric' : 'text'}
+                  maxLength={isHonduran ? 13 : 20}
                 />
                 {dniError && (
                   <p className="text-sm text-destructive">{dniError}</p>
@@ -582,24 +645,34 @@ const Inscripcion = () => {
                   <p className="text-sm text-destructive">{birthDateError}</p>
                 )}
               </div>
-               <div className="space-y-2">
-                <Label htmlFor="tallaCamisa">Talla de Camisa *</Label>
-                <Select
-                  value={formData.tallaCamisa}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, tallaCamisa: value }))}
-                >
-                  <SelectTrigger id="tallaCamisa">
-                    <SelectValue placeholder="Selecciona la talla" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {tallasCamisa.map((talla) => (
-                      <SelectItem key={talla} value={talla}>
-                        {talla}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-2">
+                <Label htmlFor="pais">País *</Label>
+                <CountryCombobox
+                  id="pais"
+                  value={formData.pais}
+                  onValueChange={handleCountryChange}
+                />
               </div>
+              {!activeEvent.allowMultipleDistances && (
+                <div className="space-y-2">
+                  <Label htmlFor="tallaCamisa">Talla de Camisa *</Label>
+                  <Select
+                    value={formData.tallaCamisa}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, tallaCamisa: value }))}
+                  >
+                    <SelectTrigger id="tallaCamisa">
+                      <SelectValue placeholder="Selecciona la talla" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tallasCamisa.map((talla) => (
+                        <SelectItem key={talla} value={talla}>
+                          {talla}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="email">Email *</Label>
                 <Input
@@ -642,30 +715,65 @@ const Inscripcion = () => {
               <CardTitle className="text-xl text-primary">Datos de Competencia</CardTitle>
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label htmlFor="distancia">Distancia *</Label>
-                <Select
-                  value={formData.distancia}
-                  onValueChange={(value) =>
-                    setFormData(prev => {
-                      const next = { ...prev, distancia: value };
-                      validateAgeForInputs(next.nacimiento, next.distancia);
-                      return next;
-                    })
-                  }
-                  required
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona la distancia" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {activeEvent.distances.map((distance) => (
-                      <SelectItem key={distance.value} value={distance.value} disabled={isDistanceDisabled(distance.value)}>
-                        {distance.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-3">
+                <Label htmlFor="distancia">{activeEvent.allowMultipleDistances ? 'Pruebas *' : 'Distancia *'}</Label>
+                {activeEvent.allowMultipleDistances ? (
+                  <div className="rounded-lg border bg-card p-4 space-y-3">
+                    {activeEvent.distances.map((distance) => {
+                      const disabled = isDistanceDisabled(distance.value);
+                      const checked = selectedDistances.includes(distance.value);
+
+                      return (
+                        <label
+                          key={distance.value}
+                          className={`flex items-start gap-3 text-sm ${disabled ? 'cursor-not-allowed text-muted-foreground' : 'cursor-pointer'}`}
+                        >
+                          <Checkbox
+                            checked={checked}
+                            disabled={disabled}
+                            onCheckedChange={(value) => handleDistanceToggle(distance.value, Boolean(value))}
+                          />
+                          <span>
+                            <span className="font-medium text-foreground">{distance.label}</span>
+                            {disabled && (
+                              <span className="block text-xs text-muted-foreground">
+                                Edad mínima: {distance.minAge} años
+                              </span>
+                            )}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <Select
+                    value={formData.distancia}
+                    onValueChange={(value) =>
+                      setFormData(prev => {
+                        const next = { ...prev, distancia: value };
+                        validateAgeForInputs(next.nacimiento, next.distancia);
+                        return next;
+                      })
+                    }
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona la distancia" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activeEvent.distances.map((distance) => (
+                        <SelectItem key={distance.value} value={distance.value} disabled={isDistanceDisabled(distance.value)}>
+                          {distance.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                {activeEvent.allowMultipleDistances && selectedDistanceLabels.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Pruebas seleccionadas: {selectedDistanceLabels.join(', ')}
+                  </p>
+                )}
               </div>
               
               <div className="space-y-2">
@@ -685,12 +793,12 @@ const Inscripcion = () => {
                 </Select>
               </div>
               
-              {formData.distancia && formData.nacimiento && (
+              {formData.nacimiento && (
                 <div className="md:col-span-2">
                   <Label>Categoría</Label>
                   <div className="p-3 bg-muted rounded-lg">
                     <span className="font-semibold text-primary">
-                      {calculateCategory(formData.nacimiento, formData.distancia)}
+                      {calculateCategory(formData.nacimiento, selectedDistances[0]) || 'No hay categoría disponible para esta edad'}
                     </span>
                   </div>
                 </div>
@@ -745,6 +853,18 @@ const Inscripcion = () => {
               <CardTitle className="text-xl text-primary">Información de Pago</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Deposita <strong className="text-foreground">{formatRegistrationFee(paymentAmount)}</strong> en cualquiera de estas cuentas.
+                  {activeEvent.courseType === 'open_water' && (
+                    <span className="block">
+                      {AGE_BASED_REGISTRATION_FEE_TEXT}
+                    </span>
+                  )}
+                </p>
+                <PaymentDetails paymentInfo={activeEvent.paymentInfo} />
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="banco">Banco/Plataforma *</Label>
@@ -765,16 +885,19 @@ const Inscripcion = () => {
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="monto">Monto (L) *</Label>
+                  <Label htmlFor="monto">Monto *</Label>
                   <Input
                     id="monto"
-                    type="number"
-                    step="0.01"
+                    type="text"
                     value={formData.monto}
-                    onChange={(e) => setFormData(prev => ({ ...prev, monto: e.target.value }))}
+                    readOnly
+                    className="bg-muted"
                     required
-                    placeholder={activeEvent.price}
+                    placeholder={paymentAmount}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Se calcula automáticamente por la edad al día del evento.
+                  </p>
                 </div>
                 
                 <div className="md:col-span-2 space-y-2">
@@ -830,7 +953,7 @@ const Inscripcion = () => {
                   </Label>
                   <p className="text-xs text-muted-foreground">
                     Al inscribirme acepto las normas del evento y eximo de responsabilidad a los organizadores.{' '}
-                    <Link to="/reglamento" className="text-primary hover:underline">
+                    <Link to={`/eventos/${activeEvent.id}/reglamento`} className="text-primary hover:underline">
                       Leer reglamento completo
                     </Link>
                   </p>
@@ -859,6 +982,7 @@ const Inscripcion = () => {
           </div>
         </form>
       </div>
+      <FooterGM />
     </div>
   );
 };

@@ -3,22 +3,39 @@ import { FooterGM } from '@/components/layout/footer';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Clock, Users, Shield, Trophy, MapPin, FileText } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { ArrowLeft, Clock, Users, Shield, MapPin, FileText } from 'lucide-react';
+import { Link, useParams } from 'react-router-dom';
 import logoImage from '@/assets/Logo.webp';
 import { useRegistrations } from '@/context/registration-context';
+import { AGE_BASED_REGISTRATION_FEE_TEXT } from '@/lib/registration-categories';
+import { useEffect } from 'react';
 
 const Reglamento = () => {
-  const { activeEvent } = useRegistrations();
+  const { eventId } = useParams();
+  const { activeEvent, activeEventId, events, setActiveEventId } = useRegistrations();
+
+  useEffect(() => {
+    if (eventId && events.some((event) => event.id === eventId) && activeEventId !== eventId) {
+      setActiveEventId(eventId);
+    }
+  }, [activeEventId, eventId, events, setActiveEventId]);
+
   const eventDate = new Date(activeEvent.dateTime);
   const closeDate = new Date(activeEvent.registrationCloseDateTime);
   const formattedEventDate = eventDate.toLocaleString('es-HN', { dateStyle: 'long', timeStyle: 'short' });
   const formattedCloseDate = closeDate.toLocaleDateString('es-HN', { dateStyle: 'long' });
+  const isPoolEvent = Boolean(activeEvent.allowMultipleDistances);
+  const distanceLabel = isPoolEvent ? 'Pruebas' : 'Distancias';
+  const registrationFeeText = activeEvent.courseType === 'open_water'
+    ? AGE_BASED_REGISTRATION_FEE_TEXT
+    : `L. ${activeEvent.price}.`;
   const rules = [
     {
       icon: <Clock className="h-6 w-6" />,
-      title: 'Salida Escalonada',
-      description: 'Las salidas se realizarán por categorías de forma escalonada para garantizar la seguridad de todos los participantes.'
+      title: isPoolEvent ? 'Orden de Competencia' : 'Salida Escalonada',
+      description: isPoolEvent
+        ? 'La organización anunciará cada prueba y serie antes de su salida.'
+        : 'Las salidas se realizarán por categorías de forma escalonada para garantizar la seguridad de todos los participantes.'
     },
     {
       icon: <Users className="h-6 w-6" />,
@@ -28,7 +45,9 @@ const Reglamento = () => {
     {
       icon: <Shield className="h-6 w-6" />,
       title: 'Equipo de Seguridad',
-      description: 'Salvavidas certificados, embarcaciones de apoyo, paramédicos y ambulancia estarán presentes durante todo el evento.'
+      description: isPoolEvent
+        ? 'Personal de apoyo, salvavidas y asistencia de primeros auxilios estarán presentes durante el desarrollo de la competencia.'
+        : 'Salvavidas certificados, embarcaciones de apoyo, paramédicos y ambulancia estarán presentes durante todo el evento.'
     },
 
   ];
@@ -44,12 +63,41 @@ const Reglamento = () => {
     'Gafas de natación (recomendadas)'
   ];
 
-  const prohibitions = [
-    'Material de propulsión (aletas, paletas, etc.)',
-    'Dispositivos de flotación artificiales',
-    'Aparatos electrónicos no autorizados',
-    'Elementos que puedan afectar la seguridad'
-  ];
+  const prohibitions = isPoolEvent
+    ? [
+      'Material de propulsión (aletas, paletas, snorkel, etc.)',
+      'Dispositivos de flotación artificiales',
+      'Salida antes de la señal oficial',
+      'Interferir con otro nadador o cambiarse de carril sin autorización'
+    ]
+    : [
+      'Material de propulsión (aletas, paletas, etc.)',
+      'Dispositivos de flotación artificiales',
+      'Aparatos electrónicos no autorizados',
+      'Elementos que puedan afectar la seguridad'
+    ];
+
+  const safetyItems = isPoolEvent
+    ? [
+      'Salvavidas o personal de apoyo en el área de piscina',
+      'Primeros auxilios disponibles',
+      'Control de salida y llegada por parte de la organización',
+      'Área de competencia supervisada'
+    ]
+    : [
+      'Salvavidas certificados',
+      'Embarcaciones de apoyo',
+      'Paramédicos en meta',
+      'Ambulancia disponible'
+    ];
+
+  const conditionTitle = isPoolEvent ? 'Condiciones de Piscina y Competencia' : 'Condiciones Climáticas y del Agua';
+  const conditionDescription = isPoolEvent
+    ? 'La organización se reserva el derecho de modificar el orden de pruebas, series o carriles por razones operativas, seguridad o desarrollo del evento.'
+    : 'La organización se reserva el derecho de suspender, posponer o modificar el evento en caso de condiciones climáticas adversas o calidad del agua que comprometan la seguridad de los participantes.';
+  const monitoringDescription = isPoolEvent
+    ? 'El área de piscina, orden de pruebas y condiciones de competencia serán supervisadas durante todo el evento. Cualquier cambio será comunicado a los participantes.'
+    : 'Las condiciones del lago y el clima serán monitoreadas constantemente. Cualquier cambio o decisión será comunicada a los participantes con la mayor anticipación posible.';
 
   const escapeHtml = (value: unknown) =>
     String(value ?? '')
@@ -173,7 +221,7 @@ const Reglamento = () => {
               <dt>Lugar:</dt><dd>${escapeHtml(activeEvent.location)}</dd>
               <dt>Organiza:</dt><dd>Swim + plus HN</dd>
               <dt>Cupo:</dt><dd>${activeEvent.capacityLimit ? `Máximo ${activeEvent.capacityLimit} participantes` : 'Sin límite'}</dd>
-              <dt>Inscripción:</dt><dd>L. ${escapeHtml(activeEvent.price)}. ${escapeHtml(activeEvent.paymentInfo)}</dd>
+              <dt>Inscripción:</dt><dd>${escapeHtml(registrationFeeText)} ${escapeHtml(activeEvent.paymentInfo)}</dd>
             </dl>
           </div>
           <div class="section">
@@ -181,7 +229,7 @@ const Reglamento = () => {
             ${rulesHtml}
           </div>
           <div class="section">
-            <h2>Distancias y Categorías</h2>
+            <h2>${escapeHtml(distanceLabel)} y Categorías</h2>
             ${categoriesHtml}
           </div>
           <div class="section">
@@ -195,11 +243,13 @@ const Reglamento = () => {
           <div class="section">
             <h2>Medidas de Seguridad</h2>
             <ul>
-              <li>Salvavidas certificados</li>
-              <li>Embarcaciones de apoyo</li>
-              <li>Paramédicos en meta</li>
-              <li>Ambulancia disponible</li>
+              ${safetyItems.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}
             </ul>
+          </div>
+          <div class="section">
+            <h2>${escapeHtml(conditionTitle)}</h2>
+            <p>${escapeHtml(conditionDescription)}</p>
+            <p>${escapeHtml(monitoringDescription)}</p>
           </div>
         </body>
       </html>
@@ -212,15 +262,15 @@ const Reglamento = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <Navigation />
 
-      <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="flex-1 max-w-4xl mx-auto px-4 py-8">
         <div className="mb-8">
-          <Link to="/">
+          <Link to={`/eventos/${activeEvent.id}`}>
             <Button variant="ghost">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Volver al inicio
+              Volver al evento
             </Button>
           </Link>
         </div>
@@ -302,7 +352,7 @@ const Reglamento = () => {
                 <div className="text-primary"><Users className="h-6 w-6" /></div>
                 <div>
                   <h4 className="font-semibold text-primary mb-2">Costo de Inscripción</h4>
-                  <p className="text-sm text-muted-foreground">L {activeEvent.price}. {activeEvent.paymentInfo}</p>
+                  <p className="text-sm text-muted-foreground">{registrationFeeText} {activeEvent.paymentInfo}</p>
                 </div>
               </div>
             </div>
@@ -312,7 +362,7 @@ const Reglamento = () => {
         {/* Categories */}
         <Card className="card-gradient shadow-card mb-8">
           <CardHeader>
-            <CardTitle className="text-2xl text-primary">Distancias y Categorías</CardTitle>
+            <CardTitle className="text-2xl text-primary">{distanceLabel} y Categorías</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
@@ -380,17 +430,18 @@ const Reglamento = () => {
               <div>
                 <h4 className="font-semibold text-primary mb-2">Personal de Seguridad</h4>
                 <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• Salvavidas certificados</li>
-                  <li>• Embarcaciones de apoyo</li>
-                  <li>• Personal de rescate acuático</li>
+                  {safetyItems.slice(0, 3).map((item) => (
+                    <li key={item}>• {item}</li>
+                  ))}
                 </ul>
               </div>
 
               <div>
                 <h4 className="font-semibold text-primary mb-2">Asistencia Médica</h4>
                 <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• Paramédicos en meta</li>
-                  <li>• Ambulancia disponible</li>
+                  {safetyItems.slice(3).map((item) => (
+                    <li key={item}>• {item}</li>
+                  ))}
                   <li>• Botiquín de primeros auxilios</li>
                 </ul>
               </div>
@@ -400,7 +451,7 @@ const Reglamento = () => {
               <h4 className="font-semibold text-primary mb-2">Retiro Voluntario</h4>
               <p className="text-sm text-muted-foreground">
                 Los participantes pueden retirarse voluntariamente en cualquier momento,
-                pero deben avisar inmediatamente al personal de seguridad más cercano.
+                pero deben avisar inmediatamente al personal de apoyo más cercano.
               </p>
             </div>
           </CardContent>
@@ -409,21 +460,17 @@ const Reglamento = () => {
         {/* Weather */}
         <Card className="card-gradient shadow-card mb-8">
           <CardHeader>
-            <CardTitle className="text-2xl text-primary">Condiciones Climáticas y del Agua</CardTitle>
+            <CardTitle className="text-2xl text-primary">{conditionTitle}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-muted-foreground">
-              La organización se reserva el derecho de suspender, posponer o modificar el evento
-              en caso de condiciones climáticas adversas o calidad del agua que comprometan la
-              seguridad de los participantes.
+              {conditionDescription}
             </p>
 
             <div className="bg-lake-light/20 p-4 rounded-lg border border-lake-blue/20">
               <h4 className="font-semibold text-primary mb-2">Monitoreo Continuo</h4>
               <p className="text-sm text-muted-foreground">
-                Las condiciones del lago y el clima serán monitoreadas constantemente.
-                Cualquier cambio o decisión será comunicada a los participantes con la
-                mayor anticipación posible.
+                {monitoringDescription}
               </p>
             </div>
           </CardContent>
@@ -472,7 +519,7 @@ const Reglamento = () => {
               <li>• Los organizadores no se hacen responsables por accidentes, lesiones o daños.</li>
               <li>• Declara estar en buena condición física y sin problemas médicos que le impidan participar.</li>
               <li>• Autoriza a recibir atención médica en caso de emergencia.</li>
-              <li>• Se compromete a usar el equipo de seguridad requerido y seguir todas las instrucciones del personal.</li>
+              <li>• Se compromete a usar el equipo requerido y seguir todas las instrucciones del personal.</li>
               <li>• Acepta que la inscripción no es reembolsable.</li>
               <li>• Autoriza el uso de su imagen en fotografías o videos del evento.</li>
               <li>• Si es menor de edad, confirma que su padre, madre o tutor realizó la inscripción y asume la responsabilidad.</li>
@@ -488,7 +535,7 @@ const Reglamento = () => {
 
         {/* CTA */}
         <div className="text-center">
-          <Link to="/inscripcion">
+          <Link to={`/eventos/${activeEvent.id}/inscripcion`}>
             <Button size="lg" className="button-gradient shadow-button text-lg px-12 py-6">
               <FileText className="mr-2 h-5 w-5" />
               Proceder a Inscripción
@@ -496,6 +543,7 @@ const Reglamento = () => {
           </Link>
         </div>
       </div>
+      <FooterGM />
     </div>
   );
 };

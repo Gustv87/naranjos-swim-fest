@@ -113,6 +113,7 @@ const escapeHtml = (value) =>
 const buildRegistrationSummary = (data) => {
   const resumen = [
     `Dorsal: ${data.dorsal ?? 'Pendiente'}`,
+    `País: ${data.pais ?? data.nacionalidad ?? 'No indicado'}`,
     `Distancia: ${data.distancia ?? 'No indicada'}`,
     `Categoría: ${data.categoria ?? 'No indicada'}`,
     `Banco: ${data.banco ?? 'No indicado'}`,

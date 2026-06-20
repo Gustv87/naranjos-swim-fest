@@ -1,106 +1,139 @@
-import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Menu, X, Waves } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { getEventRegistrationStatus } from '@/config/event';
 import { useRegistrations } from '@/context/registration-context';
+import { cn } from '@/lib/utils';
+import { Menu, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+
+const logoPath = '/images/brand/swim-plus-logo.webp';
 
 export function Navigation() {
   const [isOpen, setIsOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
   const location = useLocation();
-  const { activeEvent } = useRegistrations();
+  const { activeEvent, setActiveEventId } = useRegistrations();
+  const isHome = location.pathname === '/';
 
-  const isActive = (path: string) => location.pathname === path;
+  useEffect(() => {
+    const handleScroll = () => setIsScrolled(window.scrollY > 24);
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
-  const registrationClosed = useMemo(() => new Date() >= new Date(activeEvent.registrationCloseDateTime), [activeEvent.registrationCloseDateTime]);
-  const registrationClosedMessage = `Las inscripciones cerraron el ${new Date(activeEvent.registrationCloseDateTime).toLocaleString('es-HN', { dateStyle: 'long', timeStyle: 'medium' })}.`;
+  useEffect(() => {
+    setIsOpen(false);
+  }, [location.pathname, location.hash]);
+
+  const registrationStatus = useMemo(() => getEventRegistrationStatus(activeEvent), [activeEvent]);
+  const ctaHref = registrationStatus.isOpen
+    ? `/eventos/${activeEvent.id}/inscripcion`
+    : '/eventos';
 
   const navigation = [
-    { name: 'Inicio', href: '/' },
-    { name: 'Inscribirme', href: '/inscripcion', disabled: false, tooltip: registrationClosed ? registrationClosedMessage : undefined },
-    { name: 'Resultados', href: '/resultados' },
-    { name: 'Reglamento', href: '/reglamento' },
+    { name: 'Inicio', href: '/#inicio' },
+    { name: 'Eventos', href: '/eventos' },
+    { name: 'Servicios', href: '/#servicios' },
+    { name: 'Nosotros', href: '/#nosotros' },
+    { name: 'Galería', href: '/#galeria' },
+    { name: 'Contacto', href: '/#contacto' },
   ];
 
+  const transparent = isHome && !isScrolled && !isOpen;
+
+  const isActive = (href: string) => {
+    if (href === '/') return location.pathname === '/';
+    if (href.startsWith('/#')) return location.pathname === '/' && location.hash === href.replace('/', '');
+    return location.pathname === href || (href === '/eventos' && location.pathname.startsWith('/eventos'));
+  };
+
+  const renderNavLink = (item: { name: string; href: string }, mobile = false) => (
+    <a
+      key={item.name}
+      href={item.href}
+      className={cn(
+        'rounded-full px-4 py-2 text-sm font-semibold transition-all duration-300',
+        mobile ? 'block min-h-11 w-full' : 'inline-flex min-h-11 items-center',
+        transparent
+          ? 'text-white/88 hover:bg-white/12 hover:text-white'
+          : 'text-[#0d1b2a]/78 hover:bg-[#e0f7fa] hover:text-[#0a4d68]',
+        isActive(item.href) && (transparent ? 'bg-white/16 text-white' : 'bg-[#e0f7fa] text-[#0a4d68]')
+      )}
+    >
+      {item.name}
+    </a>
+  );
+
   return (
-    <nav className="bg-card/80 backdrop-blur-md border-b border-border sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
-          <div className="flex items-center">
-            <Link to="/" className="flex items-center space-x-2">
-              <Waves className="h-8 w-8 text-primary" />
-              <span className="font-bold text-lg text-primary">{activeEvent.name}</span>
-            </Link>
-          </div>
+    <nav
+      className={cn(
+        'top-0 z-50 w-full transition-all duration-300',
+        isHome ? 'fixed' : 'sticky',
+        transparent
+          ? 'border-transparent bg-transparent'
+          : 'border-b border-[#e0f7fa] bg-white/95 shadow-[0_12px_40px_-30px_rgba(10,77,104,0.7)] backdrop-blur-md'
+      )}
+      aria-label="Navegación principal"
+    >
+      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <a href="/#inicio" className="flex min-h-11 items-center gap-3" aria-label="Ir al inicio de Swim Plus HN">
+          <img
+            src={logoPath}
+            alt="Swim Plus HN"
+            width={44}
+            height={44}
+            className="h-11 w-11 rounded-full bg-white object-contain p-1 shadow-sm"
+          />
+          <span className={cn('text-lg font-extrabold tracking-tight', transparent ? 'text-white' : 'text-[#0a4d68]')}>
+            Swim Plus HN
+          </span>
+        </a>
 
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-1">
-            {navigation.map((item) => (
-              item.disabled ? (
-                <span
-                  key={item.name}
-                  className="px-4 py-2 text-sm font-medium text-muted-foreground cursor-not-allowed"
-                  title={item.tooltip}
-                >
-                  {item.name}
-                </span>
-              ) : (
-                <Link key={item.name} to={item.href}>
-                  <Button
-                    variant={isActive(item.href) ? "default" : "ghost"}
-                    className="transition-smooth"
-                    title={item.tooltip}
-                  >
-                    {item.name}
-                  </Button>
-                </Link>
-              )
-            ))}
-          </div>
+        <div className="hidden items-center gap-1 lg:flex">
+          {navigation.map((item) => renderNavLink(item))}
+        </div>
 
-          {/* Mobile menu button */}
-          <div className="md:hidden flex items-center">
+        <div className="hidden items-center gap-3 lg:flex">
+          <Button
+            asChild
+            onClick={() => setActiveEventId(activeEvent.id)}
+            className="h-11 rounded-full bg-[#088395] px-5 font-bold text-white shadow-lg shadow-cyan-950/10 hover:bg-[#0a4d68]"
+          >
+            <Link to={ctaHref}>{registrationStatus.isOpen ? 'Inscribirme al evento' : 'Ver eventos'}</Link>
+          </Button>
+        </div>
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className={cn(
+            'min-h-11 min-w-11 rounded-full lg:hidden',
+            transparent ? 'text-white hover:bg-white/12 hover:text-white' : 'text-[#0a4d68] hover:bg-[#e0f7fa]'
+          )}
+          onClick={() => setIsOpen((current) => !current)}
+          aria-label={isOpen ? 'Cerrar menú' : 'Abrir menú'}
+          aria-expanded={isOpen}
+        >
+          {isOpen ? <X className="h-6 w-6" aria-hidden="true" /> : <Menu className="h-6 w-6" aria-hidden="true" />}
+        </Button>
+      </div>
+
+      {isOpen && (
+        <div className="border-t border-[#e0f7fa] bg-white px-4 pb-5 pt-2 shadow-xl lg:hidden">
+          <div className="mx-auto flex max-w-7xl flex-col gap-1">
+            {navigation.map((item) => renderNavLink(item, true))}
             <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsOpen(!isOpen)}
-              aria-label="Toggle menu"
+              asChild
+              onClick={() => setActiveEventId(activeEvent.id)}
+              className="mt-3 h-12 rounded-full bg-[#088395] font-bold text-white hover:bg-[#0a4d68]"
             >
-              {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+              <Link to={ctaHref}>{registrationStatus.isOpen ? 'Inscribirme al evento' : 'Ver eventos'}</Link>
             </Button>
           </div>
         </div>
-
-        {/* Mobile Navigation */}
-        {isOpen && (
-          <div className="md:hidden border-t border-border bg-card">
-            <div className="px-2 pt-2 pb-3 space-y-1">
-              {navigation.map((item) => (
-                item.disabled ? (
-                  <Button
-                    key={item.name}
-                    variant="ghost"
-                    className="w-full justify-start cursor-not-allowed text-muted-foreground"
-                    disabled
-                    title={item.tooltip}
-                  >
-                    {item.name}
-                  </Button>
-                ) : (
-                  <Link key={item.name} to={item.href} onClick={() => setIsOpen(false)}>
-                    <Button
-                      variant={isActive(item.href) ? "default" : "ghost"}
-                      className="w-full justify-start"
-                      title={item.tooltip}
-                    >
-                      {item.name}
-                    </Button>
-                  </Link>
-                )
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+      )}
     </nav>
   );
 }
