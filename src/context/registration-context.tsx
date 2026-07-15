@@ -269,6 +269,9 @@ const normalizeEvent = (id: string, data: Partial<EventConfig>): EventConfig => 
       ? data.courseType
       : fallback.courseType,
     posterImageUrl: data.posterImageUrl ? String(data.posterImageUrl) : undefined,
+    sponsorImageUrls: Array.isArray(data.sponsorImageUrls)
+      ? data.sponsorImageUrls.map(String).filter(Boolean)
+      : [],
     capacityLimit: typeof data.capacityLimit === 'number' ? data.capacityLimit : null,
     acceptsRegistrations: Boolean(data.acceptsRegistrations),
     registrationsManuallyClosed: Boolean(data.registrationsManuallyClosed),

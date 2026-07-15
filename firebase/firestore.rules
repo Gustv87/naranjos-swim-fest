@@ -76,7 +76,7 @@ service cloud.firestore {
       function allowedEventKeys(data) {
         return data.keys().hasOnly([
           'id', 'name', 'date', 'dateTime', 'registrationOpenDateTime', 'registrationCloseDateTime',
-          'location', 'locationShort', 'price', 'paymentInfo', 'posterImageUrl', 'capacityLimit', 'distances',
+          'location', 'locationShort', 'price', 'paymentInfo', 'posterImageUrl', 'sponsorImageUrls', 'capacityLimit', 'distances',
           'courseType', 'status', 'acceptsRegistrations', 'registrationsManuallyClosed',
           'allowMultipleDistances', 'legacyWithoutEventId', 'publishedResultEventKeys', 'updatedAt'
         ]);
@@ -149,6 +149,7 @@ service cloud.firestore {
         && request.resource.data.price is string
         && request.resource.data.paymentInfo is string
         && (request.resource.data.posterImageUrl == null || request.resource.data.posterImageUrl is string)
+        && optionalList(request.resource.data, 'sponsorImageUrls')
         && request.resource.data.distances is list
         && (request.resource.data.courseType == null || request.resource.data.courseType in ['open_water', 'pool'])
         && request.resource.data.status in ['active', 'past']

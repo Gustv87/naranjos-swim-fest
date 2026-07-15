@@ -40,6 +40,7 @@ import {
   splitRegistrationDistances,
 } from '@/lib/registration-categories';
 import { SPECIAL_RESULT_TOKENS, normalizeResultTimeInput } from '@/lib/result-time';
+import { convertPdfFirstPageToImage, isPdfFile } from '@/lib/pdf-to-image';
 
 type HeatLaneAssignment = {
   lane: number;
@@ -125,6 +126,11 @@ const HEAT_SEX_GROUPS = [
 ];
 const MAX_POSTER_SIZE_MB = 10;
 const MAX_POSTER_SIZE_BYTES = MAX_POSTER_SIZE_MB * 1024 * 1024;
+const MAX_SPONSOR_SIZE_MB = 5;
+const MAX_SPONSOR_SIZE_BYTES = MAX_SPONSOR_SIZE_MB * 1024 * 1024;
+const MAX_SPONSOR_PDF_SIZE_MB = 15;
+const MAX_SPONSOR_PDF_SIZE_BYTES = MAX_SPONSOR_PDF_SIZE_MB * 1024 * 1024;
+const MAX_SPONSOR_LOGOS = 30;
 const { toast } = useToast();
 const location = useLocation();
 const navigate = useNavigate();
@@ -183,6 +189,8 @@ const {
   const [isSavingEvent, setIsSavingEvent] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [eventPosterFile, setEventPosterFile] = useState<File | null>(null);
+  const [eventSponsorFiles, setEventSponsorFiles] = useState<File[]>([]);
+  const [isConvertingSponsorPdfs, setIsConvertingSponsorPdfs] = useState(false);
   const [isTogglingRegistrationLock, setIsTogglingRegistrationLock] = useState(false);
   const [isClosingEvent, setIsClosingEvent] = useState(false);
   const [eventForm, setEventForm] = useState({
@@ -194,6 +202,7 @@ const {
     price: '600',
     paymentInfo: '',
     posterImageUrl: '',
+    sponsorImageUrls: [] as string[],
     distancesText: '',
     categoriesText: '',
     courseType: (activeEvent.courseType ?? 'open_water') as 'open_water' | 'pool',
@@ -541,6 +550,7 @@ const {
 
     setEditingEventId(eventToEdit?.id ?? null);
     setEventPosterFile(null);
+    setEventSponsorFiles([]);
     setEventForm({
       name: eventToEdit?.name ?? '',
       date: eventToEdit?.date ?? '',
@@ -552,6 +562,7 @@ const {
       price: eventToEdit?.price || activeEvent.price || '600',
       paymentInfo: eventToEdit?.paymentInfo ?? activeEvent.paymentInfo,
       posterImageUrl: eventToEdit?.posterImageUrl ?? '',
+      sponsorImageUrls: eventToEdit?.sponsorImageUrls ?? [],
       distancesText: eventDefaults.distances.map((distance) => distance.value).join(', '),
       categoriesText: eventToEdit ? formatEventCategories(eventToEdit) : formatEventCategories(activeEvent),
       courseType: inferEventCourseType(eventDefaults),
@@ -591,6 +602,7 @@ const {
     setIsEventDialogOpen(false);
     setEditingEventId(null);
     setEventPosterFile(null);
+    setEventSponsorFiles([]);
   };
 
   const handleEventPosterChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -637,11 +649,114 @@ const {
     return getDownloadURL(posterRef);
   };
 
+  const handleEventSponsorsChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(event.target.files ?? []);
+    event.target.value = '';
+
+    if (!selectedFiles.length) return;
+
+    const invalidType = selectedFiles.find((file) => !file.type.startsWith('image/') && !isPdfFile(file));
+    if (invalidType) {
+      toast({
+        variant: 'destructive',
+        title: 'Archivo inválido',
+        description: `${invalidType.name} no es compatible. Sube logos en formato JPG, PNG, WebP o PDF.`,
+      });
+      return;
+    }
+
+    const oversizedFile = selectedFiles.find((file) =>
+      file.size > (isPdfFile(file) ? MAX_SPONSOR_PDF_SIZE_BYTES : MAX_SPONSOR_SIZE_BYTES)
+    );
+    if (oversizedFile) {
+      toast({
+        variant: 'destructive',
+        title: 'Imagen muy pesada',
+        description: isPdfFile(oversizedFile)
+          ? `${oversizedFile.name} supera el límite de ${MAX_SPONSOR_PDF_SIZE_MB} MB para archivos PDF.`
+          : `${oversizedFile.name} supera el límite de ${MAX_SPONSOR_SIZE_MB} MB para imágenes.`,
+      });
+      return;
+    }
+
+    if (eventForm.sponsorImageUrls.length + eventSponsorFiles.length + selectedFiles.length > MAX_SPONSOR_LOGOS) {
+      toast({
+        variant: 'destructive',
+        title: 'Límite de patrocinadores alcanzado',
+        description: `Puedes agregar hasta ${MAX_SPONSOR_LOGOS} logos por evento.`,
+      });
+      return;
+    }
+
+    setIsConvertingSponsorPdfs(true);
+
+    try {
+      const processedFiles = await Promise.all(selectedFiles.map((file) =>
+        isPdfFile(file) ? convertPdfFirstPageToImage(file) : Promise.resolve(file)
+      ));
+      const oversizedConvertedFile = processedFiles.find((file) => file.size > MAX_SPONSOR_SIZE_BYTES);
+
+      if (oversizedConvertedFile) {
+        throw new Error(`La imagen generada desde ${oversizedConvertedFile.name} supera ${MAX_SPONSOR_SIZE_MB} MB.`);
+      }
+
+      setEventSponsorFiles((currentFiles) => {
+        const knownFiles = new Set(currentFiles.map((file) => `${file.name}-${file.size}-${file.lastModified}`));
+        const uniqueFiles = processedFiles.filter((file) => {
+          const key = `${file.name}-${file.size}-${file.lastModified}`;
+          if (knownFiles.has(key)) return false;
+          knownFiles.add(key);
+          return true;
+        });
+        return [...currentFiles, ...uniqueFiles];
+      });
+
+      const convertedCount = selectedFiles.filter(isPdfFile).length;
+      if (convertedCount > 0) {
+        toast({
+          title: convertedCount === 1 ? 'PDF convertido' : 'PDF convertidos',
+          description: convertedCount === 1
+            ? 'La primera página quedó lista como imagen para el patrocinador.'
+            : `Se convirtieron ${convertedCount} primeras páginas en imágenes.`,
+        });
+      }
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'No se pudo convertir el PDF',
+        description: error instanceof Error ? error.message : 'Intenta con otro archivo PDF.',
+      });
+    } finally {
+      setIsConvertingSponsorPdfs(false);
+    }
+  };
+
+  const uploadEventSponsors = async (eventId: string) => {
+    const uploadedUrls = await Promise.all(eventSponsorFiles.map(async (file, index) => {
+      const extension = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+      const safeName = slugify(file.name.replace(/\.[^.]+$/, '')) || `patrocinador-${index + 1}`;
+      const sponsorRef = ref(storage, `event-sponsors/${eventId}/${Date.now()}-${index}-${safeName}.${extension}`);
+
+      await uploadBytes(sponsorRef, file);
+      return getDownloadURL(sponsorRef);
+    }));
+
+    return [...eventForm.sponsorImageUrls, ...uploadedUrls];
+  };
+
   const handleSaveEvent = async (event: React.FormEvent) => {
     event.preventDefault();
 
     if (isReadOnlyMode) {
       showReadOnlyWarning();
+      return;
+    }
+
+    if (isConvertingSponsorPdfs) {
+      toast({
+        title: 'Conversión en progreso',
+        description: 'Espera a que los PDF terminen de convertirse antes de guardar.',
+      });
       return;
     }
 
@@ -657,7 +772,10 @@ const {
         throw new Error('No se pudo generar el identificador del evento.');
       }
 
-      const posterImageUrl = await uploadEventPoster(id);
+      const [posterImageUrl, sponsorImageUrls] = await Promise.all([
+        uploadEventPoster(id),
+        uploadEventSponsors(id),
+      ]);
 
       const eventData: EventConfig = {
         id,
@@ -671,6 +789,7 @@ const {
         price: eventForm.price.trim(),
         paymentInfo: eventForm.paymentInfo.trim(),
         posterImageUrl,
+        sponsorImageUrls,
         capacityLimit: editingEventId ? activeEvent.capacityLimit : null,
         distances: parseDistances(eventForm.distancesText),
         courseType: eventForm.courseType,
@@ -1259,7 +1378,7 @@ const {
 
   const printActionsMarkup = `
     <div class="report-actions">
-      <button type="button" onclick="window.print()">Imprimir reporte</button>
+      <button type="button" onclick="window.printReportWhenReady ? window.printReportWhenReady() : window.print()">Imprimir reporte</button>
     </div>`;
 
   const printActionsStyles = `
@@ -1290,6 +1409,60 @@ const {
         display: none !important;
       }
     }`;
+
+  const printReadyScript = `
+    <script>
+      (() => {
+        const waitForDocument = () => {
+          if (document.readyState !== 'loading') return Promise.resolve();
+          return new Promise((resolve) => document.addEventListener('DOMContentLoaded', resolve, { once: true }));
+        };
+        const withTimeout = (promise, timeoutMs) => Promise.race([
+          promise,
+          new Promise((resolve) => window.setTimeout(resolve, timeoutMs)),
+        ]);
+        const waitForFonts = () => {
+          if (!document.fonts || !document.fonts.ready) return Promise.resolve();
+          return document.fonts.ready.catch(() => undefined);
+        };
+        const waitForImages = () => Promise.all(
+          Array.from(document.images).map((image) => {
+            if (image.complete) return Promise.resolve();
+            return new Promise((resolve) => {
+              image.addEventListener('load', resolve, { once: true });
+              image.addEventListener('error', resolve, { once: true });
+            });
+          })
+        );
+        const waitForPaint = () => new Promise((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(resolve))
+        );
+
+        window.printReportWhenReady = async () => {
+          const button = document.querySelector('.report-actions button');
+          const originalText = button ? button.textContent || 'Imprimir reporte' : 'Imprimir reporte';
+          if (button) {
+            button.disabled = true;
+            button.textContent = 'Preparando impresion...';
+          }
+
+          try {
+            await waitForDocument();
+            await withTimeout(waitForFonts(), 1500);
+            await withTimeout(waitForImages(), 1500);
+            await waitForPaint();
+            document.body.offsetHeight;
+            window.focus();
+            window.print();
+          } finally {
+            if (button) {
+              button.disabled = false;
+              button.textContent = originalText;
+            }
+          }
+        };
+      })();
+    </script>`;
 
   const printAutoFitScript = `
     <script>
@@ -1559,6 +1732,7 @@ const {
           <p class="subtitle">${escapeHtml(reportTitle)}</p>
           <p class="meta">Generado: ${escapeHtml(formattedNow)}</p>
           ${sections}
+          ${printReadyScript}
         </body>
       </html>
     `);
@@ -1699,29 +1873,39 @@ const {
 
     const renderOfficialRows = (distance: string, participants: Registration[]) => {
       let rank = 0;
-      return participants.map((participant) => {
-        const result = getParticipantResult(participant, distance);
-        let position = '—';
-        if (result.seconds !== null) {
-          rank += 1;
-          position = String(rank);
-        }
+        return participants.map((participant) => {
+          const result = getParticipantResult(participant, distance);
+          let position = '—';
+          if (result.seconds !== null) {
+            rank += 1;
+            position = String(rank);
+          }
+          const participantDetails = [
+            participant.pais || 'País no indicado',
+            participant.telefono ? `Tel. ${participant.telefono}` : 'Tel. no indicado',
+          ].join(' · ');
 
-        return `
-          <tr>
-            <td class="nowrap">${escapeHtml(formatRegistrationDate(participant.createdAt))}</td>
-            <td class="nowrap">${escapeHtml(formatRegistrationTime(participant.createdAt))}</td>
-            <td>${escapeHtml(participant.nombre)}</td>
-            <td>${escapeHtml(getAgeOnEvent(participant.nacimiento) ?? 'N/A')}</td>
-            <td>${escapeHtml(participant.pais || 'No indicado')}</td>
-            <td class="nowrap">${escapeHtml(participant.telefono || 'No indicado')}</td>
-            <td>${position}</td>
-            <td>${escapeHtml(participant.dorsal)}</td>
-            <td>${escapeHtml(getParticipantCategory(participant, distance) || 'N/A')}</td>
-            <td>${escapeHtml(formatOfficialResult(result.time))}</td>
-          </tr>`;
-      }).join('');
-    };
+          return `
+            <tr>
+              <td class="date-cell">
+                <strong>${escapeHtml(formatRegistrationDate(participant.createdAt))}</strong>
+                <span>${escapeHtml(formatRegistrationTime(participant.createdAt))}</span>
+              </td>
+              <td class="dorsal-cell">${escapeHtml(participant.dorsal ? `#${participant.dorsal}` : 'N/A')}</td>
+              <td class="swimmer-cell">
+                <strong>${escapeHtml(participant.nombre)}</strong>
+                <span>${escapeHtml(participantDetails)}</span>
+              </td>
+              <td class="age-cell">${escapeHtml(getAgeOnEvent(participant.nacimiento) ?? 'N/A')}</td>
+              <td class="size-cell">${escapeHtml(participant.tallaCamisa || 'N/A')}</td>
+              <td class="category-cell">${escapeHtml(getParticipantCategory(participant, distance) || 'N/A')}</td>
+              <td class="result-cell">
+                <strong>${escapeHtml(formatOfficialResult(result.time))}</strong>
+                <span>Pos. ${escapeHtml(position)}</span>
+              </td>
+            </tr>`;
+        }).join('');
+      };
 
     let poolEventNumber = 0;
     const sections = distancesToExport.flatMap((distance) => {
@@ -1761,17 +1945,14 @@ const {
                 <table>
                   <thead>
                     <tr>
-                      <th>Fecha inscripción</th>
-                      <th>Hora inscripción</th>
-                      <th>Nombre</th>
-                      <th>Edad</th>
-                      <th>País</th>
-                      <th>Teléfono</th>
-                      <th>Posición</th>
-                      <th>Dorsal</th>
-                      <th>Categoría</th>
-                      <th>Tiempo oficial</th>
-                    </tr>
+                        <th>Fecha</th>
+                        <th>Dorsal</th>
+                        <th>Nadador</th>
+                        <th>Edad</th>
+                        <th>Talla</th>
+                        <th>Categoría</th>
+                        <th>Resultado</th>
+                      </tr>
                   </thead>
                   <tbody>${rows}</tbody>
                 </table>
@@ -1790,17 +1971,14 @@ const {
           <table>
             <thead>
               <tr>
-                <th>Fecha inscripción</th>
-                <th>Hora inscripción</th>
-                <th>Nombre</th>
-                <th>Edad</th>
-                <th>País</th>
-                <th>Teléfono</th>
-                <th>Posición</th>
-                <th>Dorsal</th>
-                <th>Categoría</th>
-                <th>Tiempo oficial</th>
-              </tr>
+                  <th>Fecha</th>
+                  <th>Dorsal</th>
+                  <th>Nadador</th>
+                  <th>Edad</th>
+                  <th>Talla</th>
+                  <th>Categoría</th>
+                  <th>Resultado</th>
+                </tr>
             </thead>
             <tbody>${rows}</tbody>
           </table>
@@ -1838,87 +2016,141 @@ const {
           <title>${escapeHtml(heading)}</title>
           <style>
             :root { color-scheme: only light; }
-            @page {
-              size: landscape;
-              margin: 10mm;
-            }
-            body {
-              font-family: 'Helvetica Neue', Arial, sans-serif;
-              margin: 20px;
-              color: #111827;
-            }
-            h1 {
-              margin: 0 0 4px;
-              font-size: 30px;
-            }
-            .meta {
-              font-size: 20px;
-              color: #6b7280;
-              margin-bottom: 16px;
-            }
-            .filters {
-              font-size: 20px;
-              background: #f3f4f6;
-              padding: 8px 12px;
-              border-radius: 6px;
-              margin-bottom: 16px;
-            }
-            .logo {
-              text-align: center;
-              margin-bottom: 16px;
-            }
-            .logo img {
-              max-width: 280px;
-              height: auto;
-              display: block;
-              margin: 0 auto;
+              @page {
+                size: letter landscape;
+                margin: 8mm;
+              }
+              body {
+                font-family: 'Helvetica Neue', Arial, sans-serif;
+                margin: 14px;
+                color: #111827;
+              }
+              h1 {
+                margin: 0 0 4px;
+                font-size: 24px;
+              }
+              .meta {
+                font-size: 13px;
+                color: #6b7280;
+                margin-bottom: 8px;
+              }
+              .filters {
+                font-size: 13px;
+                background: #f3f4f6;
+                padding: 6px 10px;
+                border-radius: 6px;
+                margin-bottom: 10px;
+              }
+              .logo {
+                text-align: center;
+                margin-bottom: 8px;
+              }
+              .logo img {
+                max-width: 180px;
+                height: auto;
+                display: block;
+                margin: 0 auto;
               background: transparent;
               border-radius: 0;
             }
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              font-size: 20px;
-              margin-bottom: 24px;
-              table-layout: fixed;
-              line-height: 1.15;
-            }
-            th, td {
-              border: 1px solid #d1d5db;
-              padding: 6px 7px;
-              text-align: left;
-              vertical-align: top;
-              overflow-wrap: anywhere;
-            }
-            th {
-              background: #f3f4f6;
-              font-weight: 600;
-            }
+              table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 12px;
+                margin-bottom: 18px;
+                table-layout: fixed;
+                line-height: 1.25;
+              }
+              th, td {
+                border: 1px solid #d1d5db;
+                padding: 5px 6px;
+                text-align: left;
+                vertical-align: middle;
+                overflow-wrap: anywhere;
+              }
+              th {
+                background: #f3f4f6;
+                font-size: 11px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0;
+              }
             tbody tr:nth-child(even) {
               background: #f9fafb;
             }
-            .distance {
-              margin-bottom: 32px;
-            }
-            .distance h2 {
-              margin: 0 0 4px;
-              font-size: 24px;
-              color: #2563eb;
-            }
-            .distance-meta {
-              margin: 0 0 12px;
-              font-size: 20px;
-              color: #6b7280;
-            }
-            .nowrap {
-              white-space: nowrap;
-            }
-            ${printActionsStyles}
-            @media print {
-              body { margin: 0; }
-              .meta, .filters { color: #4b5563; background: none; }
-              .distance h2 { color: #1f2937; }
-            }
+              .distance {
+                margin-bottom: 20px;
+                break-inside: auto;
+                page-break-inside: auto;
+              }
+              .distance h2 {
+                margin: 0 0 4px;
+                font-size: 18px;
+                color: #1f2937;
+              }
+              .distance-meta {
+                margin: 0 0 8px;
+                font-size: 13px;
+                color: #6b7280;
+              }
+              table thead {
+                display: table-header-group;
+              }
+              table tbody {
+                display: table-row-group;
+              }
+              .date-cell,
+              .dorsal-cell,
+              .age-cell,
+              .size-cell,
+              .result-cell {
+                text-align: center;
+                white-space: nowrap;
+              }
+              .date-cell strong,
+              .date-cell span,
+              .result-cell strong,
+              .result-cell span,
+              .swimmer-cell strong,
+              .swimmer-cell span {
+                display: block;
+              }
+              .swimmer-cell strong {
+                font-size: 12.5px;
+                line-height: 1.2;
+              }
+              .swimmer-cell span,
+              .date-cell span,
+              .result-cell span {
+                color: #4b5563;
+                font-size: 10.5px;
+              }
+              .category-cell {
+                font-size: 11.5px;
+                line-height: 1.2;
+              }
+              .result-cell strong {
+                font-size: 11.5px;
+              }
+              th:nth-child(1), td:nth-child(1) { width: 13%; }
+              th:nth-child(2), td:nth-child(2) { width: 8%; }
+              th:nth-child(3), td:nth-child(3) { width: 35%; }
+              th:nth-child(4), td:nth-child(4) { width: 7%; }
+              th:nth-child(5), td:nth-child(5) { width: 7%; }
+              th:nth-child(6), td:nth-child(6) { width: 20%; }
+              th:nth-child(7), td:nth-child(7) { width: 10%; }
+              tr {
+                break-inside: avoid;
+                page-break-inside: avoid;
+              }
+              ${printActionsStyles}
+              @media print {
+                body {
+                  margin: 0;
+                  font-size: 12px;
+                }
+                .meta, .filters { color: #4b5563; background: none; }
+              }
           </style>
         </head>
         <body>
@@ -1928,6 +2160,7 @@ const {
           <p class="meta">Generado: ${escapeHtml(formattedNow)}</p>
           ${summaryBlock}
           ${sections}
+          ${printReadyScript}
         </body>
       </html>
     `);
@@ -1986,6 +2219,7 @@ const {
         <tr>
           <td>${escapeHtml(participant.nombre)}</td>
           <td>${escapeHtml(getAgeOnEvent(participant.nacimiento) ?? 'N/A')}</td>
+          <td>${escapeHtml(participant.tallaCamisa || 'N/A')}</td>
         </tr>`
       ).join('');
 
@@ -2001,6 +2235,7 @@ const {
               <tr>
                 <th>Nombre</th>
                 <th>Edad</th>
+                <th>Talla</th>
               </tr>
             </thead>
             <tbody>${renderRows(items)}</tbody>
@@ -2102,10 +2337,10 @@ const {
     const formattedNow = now.toLocaleString('es-HN', { dateStyle: 'medium', timeStyle: 'short' });
     const logoMarkup = `<div class="logo"><img src="${logoImage}" alt="Swim Plus" /></div>`;
     const reportTitle = mode === 'general'
-      ? 'Reporte general de nombre y edad'
+      ? 'Reporte general de nombre, edad y talla'
       : mode === 'team'
-        ? 'Reporte de nombre y edad por equipo'
-        : 'Reporte de nombre y edad por categoría';
+        ? 'Reporte de nombre, edad y talla por equipo'
+        : 'Reporte de nombre, edad y talla por categoría';
     const longestNameLength = participants.reduce((max, participant) => Math.max(max, participant.nombre.length), 0);
     const longestTeamLength = participants.reduce((max, participant) => Math.max(max, getParticipantTeam(participant).length), 0);
     const nameAgeFontSize = longestNameLength > 44 || longestTeamLength > 38
@@ -2196,16 +2431,25 @@ const {
               background: #f3f4f6;
               font-weight: 700;
             }
-            th:last-child, td:last-child {
+            th:nth-child(2), td:nth-child(2),
+            th:nth-child(3), td:nth-child(3) {
               width: 70px;
               text-align: center;
             }
             ${printActionsStyles}
             @media print {
               body { margin: 0; }
+              .report-grid {
+                display: block;
+                column-count: 2;
+                column-gap: 14px;
+              }
               .report-section {
-                break-inside: auto;
-                page-break-inside: auto;
+                display: inline-block;
+                width: 100%;
+                break-inside: avoid;
+                page-break-inside: avoid;
+                margin-bottom: 10px;
               }
               tr {
                 break-inside: avoid;
@@ -2220,6 +2464,7 @@ const {
           <h1>${escapeHtml(reportTitle)}</h1>
           <p class="meta">Generado: ${escapeHtml(formattedNow)}</p>
           <div class="report-grid">${sections}</div>
+          ${printReadyScript}
           ${printAutoFitScript}
         </body>
       </html>
@@ -2513,6 +2758,7 @@ const {
           <p class="program-date">${escapeHtml(programEventDate)}</p>
           <p class="program-title">Programa de competencia</p>
           <div class="program-grid">${eventCards}</div>
+          ${printReadyScript}
           ${printAutoFitScript}
         </body>
       </html>
@@ -2764,6 +3010,7 @@ const {
           ${logoMarkup}
           <h1>Planilla para cronometristas</h1>
           ${sections}
+          ${printReadyScript}
         </body>
       </html>
     `);
@@ -2900,15 +3147,23 @@ const {
           <meta charset="utf-8" />
           <title>Planilla por carril</title>
           <style>
-            :root { color-scheme: only light; }
+            :root {
+              color-scheme: only light;
+              --report-font-size: 18px;
+            }
             @page {
               size: landscape;
               margin: 8mm;
+            }
+            html, body {
+              width: 100%;
+              min-width: 0;
             }
             body {
               font-family: 'Helvetica Neue', Arial, sans-serif;
               margin: 18px;
               color: #111827;
+              font-size: var(--report-font-size);
             }
             h1 {
               margin: 0 0 12px;
@@ -2921,7 +3176,7 @@ const {
             }
             .hint {
               margin: 0;
-              font-size: 20px;
+              font-size: 0.95rem;
               color: #4b5563;
             }
             .logo {
@@ -2937,33 +3192,54 @@ const {
             .lane-sheet {
               break-inside: avoid;
               page-break-inside: avoid;
-              margin-bottom: 18px;
+              page-break-before: always;
+              break-before: page;
+              margin-bottom: 12px;
+            }
+            .lane-sheet:first-of-type {
+              page-break-before: auto;
+              break-before: auto;
+            }
+            .logo, h1 {
+              page-break-after: avoid;
+              break-after: avoid;
             }
             .sheet-heading {
               display: flex;
+              flex-wrap: wrap;
               justify-content: space-between;
-              gap: 18px;
+              gap: 12px;
               border: 1px solid #d1d5db;
               border-bottom: 0;
               background: #f8fafc;
               padding: 10px 12px;
+              page-break-inside: avoid;
+              break-inside: avoid;
             }
             .timer-box {
-              min-width: 240px;
-              font-size: 20px;
-              line-height: 1.9;
+              min-width: 180px;
+              font-size: 0.95rem;
+              line-height: 1.8;
               color: #111827;
             }
             table {
               width: 100%;
               border-collapse: collapse;
-              font-size: 20px;
+              font-size: 0.95rem;
               table-layout: fixed;
               line-height: 1.15;
+              page-break-inside: avoid;
+              break-inside: avoid;
+            }
+            table thead {
+              display: table-header-group;
+            }
+            table tbody {
+              display: table-row-group;
             }
             th, td {
               border: 1px solid #d1d5db;
-              padding: 7px 8px;
+              padding: 6px 7px;
               text-align: left;
               vertical-align: middle;
               overflow-wrap: anywhere;
@@ -2982,7 +3258,7 @@ const {
             th:nth-child(8), td:nth-child(8) { width: 9%; }
             th:nth-child(9), td:nth-child(9) { width: 12%; }
             .write-cell, .notes-cell {
-              height: 34px;
+              height: 32px;
               background: #fff;
             }
             .empty-lane td {
@@ -2992,7 +3268,30 @@ const {
             }
             ${printActionsStyles}
             @media print {
-              body { margin: 0; }
+              body {
+                margin: 0;
+                font-size: 0.9rem;
+              }
+              h1 {
+                font-size: 24px;
+              }
+              .sheet-heading {
+                padding: 8px 10px;
+              }
+              .timer-box {
+                min-width: 140px;
+              }
+              table {
+                font-size: 0.85rem;
+              }
+              .lane-sheet {
+                page-break-after: auto;
+                break-after: auto;
+              }
+              .lane-sheet table {
+                page-break-inside: auto;
+                break-inside: auto;
+              }
             }
           </style>
         </head>
@@ -3001,6 +3300,7 @@ const {
           ${logoMarkup}
           <h1>Planilla por carril</h1>
           ${laneSections}
+          ${printReadyScript}
         </body>
       </html>
     `);
@@ -3731,15 +4031,15 @@ const {
           <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-background px-3 py-2">
             <Label htmlFor="report-type" className="text-sm whitespace-nowrap">Reporte</Label>
             <Select value={selectedReport} onValueChange={(value) => setSelectedReport(value as ReportType)}>
-              <SelectTrigger id="report-type" className="h-9 w-full sm:w-[240px]">
+              <SelectTrigger id="report-type" className="h-9 w-full sm:w-[300px]">
                 <SelectValue placeholder="Selecciona un reporte" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="pdf">PDF completo</SelectItem>
                 <SelectItem value="csv">CSV inscripciones</SelectItem>
-                <SelectItem value="name-age">Nombre y edad por categoría</SelectItem>
-                <SelectItem value="name-age-general">Nombre y edad general</SelectItem>
-                <SelectItem value="name-age-team">Nombre y edad por equipo</SelectItem>
+                <SelectItem value="name-age">Nombre, edad y talla por categoría</SelectItem>
+                <SelectItem value="name-age-general">Nombre, edad y talla general</SelectItem>
+                <SelectItem value="name-age-team">Nombre, edad y talla por equipo</SelectItem>
                 <SelectItem value="results-event">Resultados por evento</SelectItem>
                 <SelectItem value="results-general">Resultados generales</SelectItem>
                 {isPoolEvent && (
@@ -4507,6 +4807,86 @@ const {
                     />
                   )}
                 </div>
+                <div className="space-y-3 rounded-lg border bg-muted/20 p-4 md:col-span-2">
+                  <div>
+                    <Label htmlFor="eventSponsorFiles">Patrocinadores de este evento</Label>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Agrega los logos que aparecerán únicamente dentro del detalle de esta competencia.
+                    </p>
+                  </div>
+                  <Input
+                    id="eventSponsorFiles"
+                    type="file"
+                    accept="image/*,application/pdf,.pdf"
+                    multiple
+                    onChange={handleEventSponsorsChange}
+                    disabled={isConvertingSponsorPdfs}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Hasta {MAX_SPONSOR_LOGOS} patrocinadores. Puedes seleccionar imágenes o PDF; cada PDF puede pesar hasta {MAX_SPONSOR_PDF_SIZE_MB} MB y su primera página se convertirá automáticamente en imagen.
+                  </p>
+                  {isConvertingSponsorPdfs && (
+                    <div className="rounded-lg border bg-background px-3 py-2 text-sm text-muted-foreground" role="status">
+                      Convirtiendo PDF a imagen…
+                    </div>
+                  )}
+
+                  {eventForm.sponsorImageUrls.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-foreground">Logos guardados</p>
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                        {eventForm.sponsorImageUrls.map((imageUrl, index) => (
+                          <div key={`${imageUrl}-${index}`} className="relative flex aspect-[3/2] items-center justify-center rounded-lg border bg-white p-3">
+                            <img
+                              src={imageUrl}
+                              alt={`Patrocinador ${index + 1}`}
+                              className="max-h-full max-w-full object-contain"
+                            />
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon"
+                              className="absolute -right-2 -top-2 h-7 w-7 rounded-full"
+                              onClick={() => setEventForm((prev) => ({
+                                ...prev,
+                                sponsorImageUrls: prev.sponsorImageUrls.filter((_, itemIndex) => itemIndex !== index),
+                              }))}
+                              aria-label={`Quitar patrocinador ${index + 1}`}
+                            >
+                              <XCircle className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {eventSponsorFiles.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-foreground">Listos para subir al guardar</p>
+                      <div className="space-y-2">
+                        {eventSponsorFiles.map((file, index) => (
+                          <div
+                            key={`${file.name}-${file.size}-${file.lastModified}`}
+                            className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2 text-sm"
+                          >
+                            <span className="min-w-0 truncate text-muted-foreground">{file.name}</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setEventSponsorFiles((files) => files.filter((_, itemIndex) => itemIndex !== index))}
+                              aria-label={`Quitar ${file.name}`}
+                            >
+                              <XCircle className="mr-1 h-4 w-4" />
+                              Quitar
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <div className="space-y-1.5 md:col-span-2">
                   <Label>Distancias separadas por coma</Label>
                   <Input value={eventForm.distancesText} onChange={(e) => setEventForm((prev) => ({ ...prev, distancesText: e.target.value }))} placeholder="800m, 2km, 5km" required />
@@ -4557,7 +4937,7 @@ const {
                 <Button type="button" variant="outline" onClick={closeEventDialog} disabled={isSavingEvent}>
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={isSavingEvent}>
+                <Button type="submit" disabled={isSavingEvent || isConvertingSponsorPdfs}>
                   {isSavingEvent
                     ? editingEventId ? 'Guardando...' : 'Creando...'
                     : editingEventId ? 'Guardar cambios' : 'Crear competencia'}

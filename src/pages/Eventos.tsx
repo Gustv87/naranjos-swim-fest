@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { CapacityIndicator } from '@/components/ui/capacity-indicator';
 import { Countdown } from '@/components/ui/countdown';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { PaymentDetails } from '@/components/payment-details';
 import { useRegistrations } from '@/context/registration-context';
@@ -28,6 +29,12 @@ const formatDateTime = (value: string) =>
   new Date(value).toLocaleString('es-HN', {
     dateStyle: 'long',
     timeStyle: 'short',
+  });
+
+const formatTime = (value: string) =>
+  new Date(value).toLocaleTimeString('es-HN', {
+    hour: '2-digit',
+    minute: '2-digit',
   });
 
 const getRegistrationPriceLabel = (event: EventConfig) =>
@@ -288,6 +295,37 @@ const Eventos = () => {
               </aside>
             </div>
           </section>
+
+          {selectedEvent.sponsorImageUrls && selectedEvent.sponsorImageUrls.length > 0 && (
+            <section className="border-t bg-muted/30 px-4 py-14" aria-labelledby="event-sponsors-title">
+              <div className="mx-auto max-w-6xl">
+                <div className="mx-auto mb-8 max-w-2xl text-center">
+                  <Badge variant="secondary" className="mb-3">Aliados del evento</Badge>
+                  <h2 id="event-sponsors-title" className="text-3xl font-bold text-foreground">
+                    Patrocinadores
+                  </h2>
+                  <p className="mt-2 text-muted-foreground">
+                    Gracias a las organizaciones que hacen posible este evento.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                  {selectedEvent.sponsorImageUrls.map((imageUrl, index) => (
+                    <div
+                      key={`${imageUrl}-${index}`}
+                      className="flex aspect-[3/2] items-center justify-center rounded-xl border bg-white p-5 shadow-sm"
+                    >
+                      <img
+                        src={imageUrl}
+                        alt={`Logo del patrocinador ${index + 1}`}
+                        className="max-h-full max-w-full object-contain"
+                        loading="lazy"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+          )}
         </main>
 
         <FooterGM />
@@ -300,18 +338,18 @@ const Eventos = () => {
       <Navigation />
 
       <main className="flex-1">
-        <section className="px-4 py-16 bg-gradient-to-b from-muted/40 to-background">
-          <div className="max-w-6xl mx-auto space-y-5 text-center">
+        <section className="px-4 py-10 bg-gradient-to-b from-muted/40 to-background">
+          <div className="max-w-6xl mx-auto space-y-4 text-center">
             <Badge variant="secondary" className="mx-auto w-fit">Calendario</Badge>
-            <h1 className="text-4xl md:text-5xl font-bold text-foreground">Eventos</h1>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+            <h1 className="text-3xl md:text-4xl font-bold text-foreground">Eventos</h1>
+            <p className="text-base text-muted-foreground max-w-2xl mx-auto">
               Revisa los próximos encuentros, entra al evento que te interesa y completa tu inscripción cuando esté disponible.
             </p>
           </div>
         </section>
 
-        <section className="px-4 py-12">
-          <div className="max-w-6xl mx-auto space-y-12">
+        <section className="px-4 py-8">
+          <div className="max-w-6xl mx-auto space-y-10">
             <EventSection title="Próximos eventos" events={upcomingEvents} setActiveEventId={setActiveEventId} />
             {pastEvents.length > 0 && (
               <EventSection title="Eventos anteriores" events={pastEvents} setActiveEventId={setActiveEventId} />
@@ -343,7 +381,15 @@ const EventSection = ({
   setActiveEventId: (eventId: string) => void;
 }) => (
   <div className="space-y-5">
-    <h2 className="text-2xl md:text-3xl font-bold text-foreground">{title}</h2>
+    <div className="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <h2 className="text-2xl md:text-3xl font-bold text-foreground">{title}</h2>
+        <p className="text-sm text-muted-foreground">Vista rápida para elegir el evento sin abrir cada detalle.</p>
+      </div>
+      {events.length > 0 && (
+        <Badge variant="outline">{events.length} evento{events.length === 1 ? '' : 's'}</Badge>
+      )}
+    </div>
     {events.length === 0 ? (
       <Card className="card-gradient shadow-card">
         <CardContent className="py-8 text-center text-muted-foreground">
@@ -351,68 +397,107 @@ const EventSection = ({
         </CardContent>
       </Card>
     ) : (
-      <div className="grid gap-6 md:grid-cols-2">
-        {events.map((event) => {
-          const state = getEventRegistrationState(event);
-
-          return (
-            <Card
-              key={event.id}
-              className={`relative overflow-hidden shadow-card transition-smooth hover:shadow-button ${event.posterImageUrl ? 'border-0 bg-primary text-white' : 'card-gradient'}`}
-              style={event.posterImageUrl ? {
-                backgroundImage: `linear-gradient(90deg, hsl(200 85% 14% / 0.92), hsl(200 70% 20% / 0.74), hsl(200 85% 14% / 0.48)), url("${event.posterImageUrl}")`,
-                backgroundPosition: 'center',
-                backgroundSize: 'cover',
-              } : undefined}
-            >
-              <CardHeader className="relative z-10 space-y-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant={event.posterImageUrl ? 'secondary' : eventStatusVariant(event)}>{state.label}</Badge>
-                  <span className={`text-sm ${event.posterImageUrl ? 'text-white/80' : 'text-muted-foreground'}`}>{formatDate(event.dateTime)}</span>
-                </div>
-                <CardTitle className={`text-2xl ${event.posterImageUrl ? 'text-white' : 'text-primary'}`}>{event.name}</CardTitle>
-                <CardDescription className={event.posterImageUrl ? 'text-white/80' : undefined}>{event.locationShort}</CardDescription>
-              </CardHeader>
-              <CardContent className="relative z-10 space-y-5">
-                <div className="flex flex-wrap gap-2">
-                  {event.distances.map((distance) => (
-                    <Badge key={distance.value} variant="outline" className={event.posterImageUrl ? 'border-white/40 bg-white/10 text-white' : undefined}>{distance.label}</Badge>
-                  ))}
-                </div>
-                <p className={`text-sm ${event.posterImageUrl ? 'text-white/80' : 'text-muted-foreground'}`}>{state.description}</p>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <Button asChild onClick={() => setActiveEventId(event.id)} className={event.posterImageUrl ? 'bg-white text-primary hover:bg-white/90' : undefined}>
-                    <Link to={`/eventos/${event.id}`}>Ver evento</Link>
-                  </Button>
-                  <Button
-                    asChild
-                    variant="outline"
-                    onClick={() => setActiveEventId(event.id)}
-                    className={event.posterImageUrl ? 'border-white/50 bg-white/10 text-white hover:bg-white/20 hover:text-white' : undefined}
-                  >
-                    <Link to={`/eventos/${event.id}/resultados`}>Ver resultados</Link>
-                  </Button>
-                  <Button
-                    asChild={state.isOpen}
-                    disabled={!state.isOpen}
-                    variant="outline"
-                    onClick={() => setActiveEventId(event.id)}
-                    className={event.posterImageUrl ? 'border-white/50 bg-white/10 text-white hover:bg-white/20 hover:text-white disabled:text-white/60' : undefined}
-                  >
-                    {state.isOpen ? (
-                      <Link to={`/eventos/${event.id}/inscripcion`}>Inscribirme</Link>
-                    ) : (
-                      <span>No disponible</span>
-                    )}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+      <Carousel opts={{ align: 'start', dragFree: true }} className="px-0 sm:px-10">
+        <CarouselContent className="-ml-4 pb-2">
+          {events.map((event) => (
+            <CarouselItem key={event.id} className="basis-[88%] pl-4 sm:basis-[430px] lg:basis-[390px]">
+              <EventQuickCard event={event} setActiveEventId={setActiveEventId} />
+            </CarouselItem>
+          ))}
+        </CarouselContent>
+        {events.length > 1 && (
+          <>
+            <CarouselPrevious className="hidden sm:inline-flex -left-1 border-primary/20 bg-background text-primary hover:bg-primary hover:text-primary-foreground" />
+            <CarouselNext className="hidden sm:inline-flex -right-1 border-primary/20 bg-background text-primary hover:bg-primary hover:text-primary-foreground" />
+          </>
+        )}
+      </Carousel>
     )}
   </div>
 );
+
+const EventQuickCard = ({
+  event,
+  setActiveEventId,
+}: {
+  event: EventConfig;
+  setActiveEventId: (eventId: string) => void;
+}) => {
+  const state = getEventRegistrationState(event);
+  const visibleDistances = event.distances.slice(0, 3);
+  const extraDistanceCount = Math.max(event.distances.length - visibleDistances.length, 0);
+  const handleSelectEvent = () => setActiveEventId(event.id);
+
+  return (
+    <Card className="h-full overflow-hidden border-border/70 bg-card shadow-card transition-smooth hover:-translate-y-0.5 hover:shadow-button">
+      <div className="relative h-28 overflow-hidden bg-primary">
+        <img
+          src={event.posterImageUrl || heroImageJpg}
+          alt=""
+          aria-hidden="true"
+          className="h-full w-full object-cover"
+          loading="lazy"
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-primary/75 via-primary/30 to-transparent" />
+        <Badge variant={eventStatusVariant(event)} className="absolute left-3 top-3 shadow-sm">
+          {state.label}
+        </Badge>
+      </div>
+
+      <CardContent className="space-y-4 p-4">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-3 text-xs font-semibold uppercase text-primary">
+            <span className="inline-flex items-center gap-1">
+              <Calendar className="h-3.5 w-3.5" />
+              {formatDate(event.dateTime)}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <Clock className="h-3.5 w-3.5" />
+              {formatTime(event.dateTime)}
+            </span>
+          </div>
+          <h3 className="min-h-[3.25rem] text-xl font-bold leading-tight text-foreground">
+            {event.name}
+          </h3>
+          <p className="flex min-h-10 items-start gap-2 text-sm text-muted-foreground">
+            <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <span>{event.locationShort}</span>
+          </p>
+        </div>
+
+        <div className="flex min-h-7 flex-wrap gap-2">
+          {visibleDistances.map((distance) => (
+            <Badge key={distance.value} variant="outline" className="border-primary/25 text-primary">
+              {distance.label}
+            </Badge>
+          ))}
+          {extraDistanceCount > 0 && (
+            <Badge variant="secondary">+{extraDistanceCount}</Badge>
+          )}
+        </div>
+
+        <p className="min-h-10 text-sm text-muted-foreground">{state.description}</p>
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Button asChild size="sm" onClick={handleSelectEvent}>
+            <Link to={`/eventos/${event.id}`}>Ver evento</Link>
+          </Button>
+          {state.isOpen ? (
+            <Button asChild size="sm" variant="outline" onClick={handleSelectEvent}>
+              <Link to={`/eventos/${event.id}/inscripcion`}>Inscribirme</Link>
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" disabled>
+              No disponible
+            </Button>
+          )}
+          <Button asChild size="sm" variant="ghost" className="sm:col-span-2" onClick={handleSelectEvent}>
+            <Link to={`/eventos/${event.id}/resultados`}>Resultados</Link>
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
 
 export default Eventos;
