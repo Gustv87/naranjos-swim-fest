@@ -4836,11 +4836,11 @@ const {
                       <p className="text-sm font-medium text-foreground">Logos guardados</p>
                       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
                         {eventForm.sponsorImageUrls.map((imageUrl, index) => (
-                          <div key={`${imageUrl}-${index}`} className="relative flex aspect-[3/2] items-center justify-center rounded-lg border bg-white p-3">
+                          <div key={`${imageUrl}-${index}`} className="relative flex h-28 min-h-0 items-center justify-center overflow-hidden rounded-lg border bg-white p-3">
                             <img
                               src={imageUrl}
                               alt={`Patrocinador ${index + 1}`}
-                              className="max-h-full max-w-full object-contain"
+                              className="block h-full min-h-0 w-full min-w-0 object-contain"
                             />
                             <Button
                               type="button"

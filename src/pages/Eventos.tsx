@@ -312,12 +312,12 @@ const Eventos = () => {
                   {selectedEvent.sponsorImageUrls.map((imageUrl, index) => (
                     <div
                       key={`${imageUrl}-${index}`}
-                      className="flex aspect-[3/2] items-center justify-center rounded-xl border bg-white p-5 shadow-sm"
+                      className="flex h-32 min-h-0 items-center justify-center overflow-hidden rounded-xl border bg-white p-5 shadow-sm lg:h-36"
                     >
                       <img
                         src={imageUrl}
                         alt={`Logo del patrocinador ${index + 1}`}
-                        className="max-h-full max-w-full object-contain"
+                        className="block h-full min-h-0 w-full min-w-0 object-contain"
                         loading="lazy"
                       />
                     </div>
