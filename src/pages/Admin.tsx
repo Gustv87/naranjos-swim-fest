@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CountryCombobox } from '@/components/country-combobox';
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useRegistrations, type Registration, type RegistrationStatus, type RegistrationEditableFields, type RegistrationResult } from '@/context/registration-context';
 import { Lock, Shield, Users, QrCode, Search, Clock, XCircle, CheckCircle2, Pencil, Plus, AlertCircle, FileText, Play, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -168,6 +168,9 @@ const {
   const [statusFilter, setStatusFilter] = useState('');
   const [distanceFilter, setDistanceFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [participantsPage, setParticipantsPage] = useState(1);
+  const [participantsPerPage, setParticipantsPerPage] = useState(20);
+  const participantsTableRef = useRef<HTMLDivElement>(null);
   const [heatLaneCount, setHeatLaneCount] = useState('5');
   const [selectedReport, setSelectedReport] = useState<ReportType>('pdf');
   const [selectedResultEventKey, setSelectedResultEventKey] = useState('');
@@ -443,6 +446,7 @@ const {
     setStatusFilter('');
     setDistanceFilter('');
     setCategoryFilter('');
+    setParticipantsPage(1);
     setResultEdits({});
     setSelectedRunEventKey('');
     setSelectedRunHeatKey('');
@@ -951,6 +955,34 @@ const {
         return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       });
   }, [registrations, searchTerm, statusFilter, distanceFilter, categoryFilter, getParticipantCategory]);
+
+  const participantsPageCount = Math.max(1, Math.ceil(filteredParticipants.length / participantsPerPage));
+  const currentParticipantsPage = Math.min(participantsPage, participantsPageCount);
+  const participantsPageStart = (currentParticipantsPage - 1) * participantsPerPage;
+  const paginatedParticipants = filteredParticipants.slice(
+    participantsPageStart,
+    participantsPageStart + participantsPerPage,
+  );
+  const visibleParticipantPages = useMemo(() => {
+    const maxVisiblePages = 5;
+    const firstPage = Math.max(
+      1,
+      Math.min(currentParticipantsPage - Math.floor(maxVisiblePages / 2), participantsPageCount - maxVisiblePages + 1),
+    );
+    const visiblePageCount = Math.min(maxVisiblePages, participantsPageCount);
+
+    return Array.from({ length: visiblePageCount }, (_, index) => firstPage + index);
+  }, [currentParticipantsPage, participantsPageCount]);
+
+  const handleParticipantsPageChange = (page: number) => {
+    const nextPage = Math.min(Math.max(page, 1), participantsPageCount);
+    setParticipantsPage(nextPage);
+    window.requestAnimationFrame(() => {
+      participantsTableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+
+  const resetParticipantsPage = () => setParticipantsPage(1);
 
   const formatDateTime = (iso: string) => {
     const date = new Date(iso);
@@ -4427,7 +4459,10 @@ const {
                     className="pl-10"
                     placeholder="Documento, nombre, referencia..."
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value);
+                      resetParticipantsPage();
+                    }}
                   />
                 </div>
               </div>
@@ -4437,7 +4472,10 @@ const {
                 <select
                   className="w-full px-3 py-2 border border-border rounded-md bg-background"
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
+                  onChange={(e) => {
+                    setStatusFilter(e.target.value);
+                    resetParticipantsPage();
+                  }}
                 >
                   <option value="">Todos</option>
                   <option value="pending">Pendientes</option>
@@ -4451,7 +4489,10 @@ const {
                 <select
                   className="w-full px-3 py-2 border border-border rounded-md bg-background"
                   value={distanceFilter}
-                  onChange={(e) => setDistanceFilter(e.target.value)}
+                  onChange={(e) => {
+                    setDistanceFilter(e.target.value);
+                    resetParticipantsPage();
+                  }}
                 >
                   <option value="">Todas</option>
                   {activeEvent.distances.map((distance) => (
@@ -4465,7 +4506,10 @@ const {
                 <select
                   className="w-full px-3 py-2 border border-border rounded-md bg-background"
                   value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  onChange={(e) => {
+                    setCategoryFilter(e.target.value);
+                    resetParticipantsPage();
+                  }}
                 >
                   <option value="">Todas</option>
                   {categoryOptions.map((category) => (
@@ -4482,12 +4526,33 @@ const {
         </Card>
 
         {/* Participants Table */}
-        <Card className="card-gradient shadow-card overflow-hidden">
-          <CardHeader className="border-b border-border/70">
-            <CardTitle className="text-xl text-primary">Inscripciones</CardTitle>
-            <CardDescription>
-              {filteredParticipants.length} registros visibles. Usa los filtros para reducir la lista.
-            </CardDescription>
+        <Card ref={participantsTableRef} className="card-gradient scroll-mt-4 shadow-card overflow-hidden">
+          <CardHeader className="gap-4 border-b border-border/70 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="text-xl text-primary">Inscripciones</CardTitle>
+              <CardDescription>
+                {filteredParticipants.length} registros coinciden con los filtros.
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <Label htmlFor="participants-per-page" className="whitespace-nowrap text-sm text-muted-foreground">
+                Mostrar
+              </Label>
+              <select
+                id="participants-per-page"
+                className="h-9 rounded-md border border-border bg-background px-3 text-sm"
+                value={participantsPerPage}
+                onChange={(event) => {
+                  setParticipantsPerPage(Number(event.target.value));
+                  resetParticipantsPage();
+                }}
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+              <span className="text-sm text-muted-foreground">por página</span>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -4523,7 +4588,7 @@ const {
                       </td>
                     </tr>
                   ) : (
-                    filteredParticipants.map((participant) => {
+                    paginatedParticipants.map((participant) => {
                       const participantDistances = getParticipantDistances(participant);
                       const participantAge = getAgeOnEvent(participant.nacimiento);
                       const participantCategory = getParticipantCategory(participant) || 'N/A';
@@ -4695,6 +4760,51 @@ const {
                 </tbody>
               </table>
             </div>
+            {!registrationsLoading && !error && filteredParticipants.length > 0 && (
+              <div className="flex flex-col gap-3 border-t border-border/70 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-center text-sm text-muted-foreground sm:text-left">
+                  Mostrando {participantsPageStart + 1}–{Math.min(participantsPageStart + participantsPerPage, filteredParticipants.length)} de {filteredParticipants.length}
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1"
+                    onClick={() => handleParticipantsPageChange(currentParticipantsPage - 1)}
+                    disabled={currentParticipantsPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Anterior
+                  </Button>
+                  {visibleParticipantPages.map((page) => (
+                    <Button
+                      key={page}
+                      type="button"
+                      variant={page === currentParticipantsPage ? 'default' : 'outline'}
+                      size="sm"
+                      className="min-w-9 px-2"
+                      aria-label={`Ir a la página ${page}`}
+                      aria-current={page === currentParticipantsPage ? 'page' : undefined}
+                      onClick={() => handleParticipantsPageChange(page)}
+                    >
+                      {page}
+                    </Button>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1"
+                    onClick={() => handleParticipantsPageChange(currentParticipantsPage + 1)}
+                    disabled={currentParticipantsPage === participantsPageCount}
+                  >
+                    Siguiente
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
           </>
