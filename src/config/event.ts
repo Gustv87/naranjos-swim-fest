@@ -26,6 +26,7 @@ export type EventConfig = {
   status: 'active' | 'past';
   acceptsRegistrations: boolean;
   registrationsManuallyClosed?: boolean;
+  shirtSelectionDisabled?: boolean;
   allowMultipleDistances?: boolean;
   legacyWithoutEventId?: boolean;
   publishedResultEventKeys?: string[];

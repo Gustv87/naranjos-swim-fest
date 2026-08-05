@@ -275,6 +275,7 @@ const normalizeEvent = (id: string, data: Partial<EventConfig>): EventConfig => 
     capacityLimit: typeof data.capacityLimit === 'number' ? data.capacityLimit : null,
     acceptsRegistrations: Boolean(data.acceptsRegistrations),
     registrationsManuallyClosed: Boolean(data.registrationsManuallyClosed),
+    shirtSelectionDisabled: Boolean(data.shirtSelectionDisabled),
     allowMultipleDistances: Boolean(data.allowMultipleDistances),
     legacyWithoutEventId: Boolean(data.legacyWithoutEventId),
     publishedResultEventKeys: Array.isArray(data.publishedResultEventKeys)
@@ -467,7 +468,7 @@ export const RegistrationProvider = ({ children }: PropsWithChildren) => {
         banco: data.banco,
         monto: expectedPaymentAmount,
         referencia: data.referencia,
-        tallaCamisa: data.tallaCamisa,
+        tallaCamisa: activeEvent.shirtSelectionDisabled ? '' : data.tallaCamisa,
         comprobanteNombre,
         comprobanteUrl,
         comprobantePath,

@@ -78,7 +78,7 @@ service cloud.firestore {
           'id', 'name', 'date', 'dateTime', 'registrationOpenDateTime', 'registrationCloseDateTime',
           'location', 'locationShort', 'price', 'paymentInfo', 'posterImageUrl', 'sponsorImageUrls', 'capacityLimit', 'distances',
           'courseType', 'status', 'acceptsRegistrations', 'registrationsManuallyClosed',
-          'allowMultipleDistances', 'legacyWithoutEventId', 'publishedResultEventKeys', 'updatedAt'
+          'shirtSelectionDisabled', 'allowMultipleDistances', 'legacyWithoutEventId', 'publishedResultEventKeys', 'updatedAt'
         ]);
       }
 
@@ -89,6 +89,12 @@ service cloud.firestore {
               get(/databases/$(database)/documents/events/$(eventId)).data.acceptsRegistrations == true
               && get(/databases/$(database)/documents/events/$(eventId)).data.registrationsManuallyClosed != true
             );
+        }
+
+        function eventAllowsRequestedShirt() {
+          return !exists(/databases/$(database)/documents/events/$(eventId))
+            || get(/databases/$(database)/documents/events/$(eventId)).data.get('shirtSelectionDisabled', false) != true
+            || request.resource.data.get('tallaCamisa', '') == '';
         }
 
         function allowedKeys(data) {
@@ -110,6 +116,7 @@ service cloud.firestore {
           && request.resource.data.status == 'pending'
           && request.resource.data.eventId == eventId
           && request.resource.data.pais is string
+          && eventAllowsRequestedShirt()
           && (eventAllowsRegistrationCreate() || isSignedInAdmin());
 
         allow update: if allowedKeys(request.resource.data)
@@ -155,6 +162,7 @@ service cloud.firestore {
         && request.resource.data.status in ['active', 'past']
         && request.resource.data.acceptsRegistrations is bool
         && (request.resource.data.registrationsManuallyClosed == null || request.resource.data.registrationsManuallyClosed is bool)
+        && (request.resource.data.shirtSelectionDisabled == null || request.resource.data.shirtSelectionDisabled is bool)
         && (request.resource.data.allowMultipleDistances == null || request.resource.data.allowMultipleDistances is bool)
         && optionalList(request.resource.data, 'publishedResultEventKeys')
         && (request.resource.data.capacityLimit == null || request.resource.data.capacityLimit is number)

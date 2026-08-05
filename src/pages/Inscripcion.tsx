@@ -68,6 +68,7 @@ const Inscripcion = () => {
   const maxParticipants = stats.max;
   const registrationStatus = getEventRegistrationStatus(activeEvent);
   const isRegistrationOpen = registrationStatus.isOpen;
+  const isShirtSelectionDisabled = Boolean(activeEvent.shirtSelectionDisabled);
   const isCapacityFull = stats.capacityFull;
   const isCapacityDataLoading = isRegistrationsLoading;
   const closedTitle = registrationStatus.reason === 'manual'
@@ -133,6 +134,11 @@ const Inscripcion = () => {
   useEffect(() => {
     setFormData((prev) => ({ ...prev, monto: calculatePaymentAmount(prev.nacimiento, prev.pais) }));
   }, [calculatePaymentAmount]);
+
+  useEffect(() => {
+    if (!isShirtSelectionDisabled) return;
+    setFormData((prev) => prev.tallaCamisa ? { ...prev, tallaCamisa: '' } : prev);
+  }, [isShirtSelectionDisabled]);
 
   const getAgeOnEvent = (birthDate: string): number | null => {
     return calculateAgeOnEvent(birthDate, activeEvent.date);
@@ -244,7 +250,7 @@ const Inscripcion = () => {
       return;
     }
 
-    if (!activeEvent.allowMultipleDistances && !formData.tallaCamisa) {
+    if (!activeEvent.allowMultipleDistances && !isShirtSelectionDisabled && !formData.tallaCamisa) {
       toast({
         variant: "destructive",
         title: "Error",
@@ -383,7 +389,7 @@ const Inscripcion = () => {
         banco: formData.banco,
         monto: calculatePaymentAmount(formData.nacimiento, formData.pais),
         referencia: formData.referencia.trim(),
-        tallaCamisa: formData.tallaCamisa,
+        tallaCamisa: isShirtSelectionDisabled ? '' : formData.tallaCamisa,
         comprobanteFile: formData.comprobante,
       });
 
@@ -655,13 +661,16 @@ const Inscripcion = () => {
               </div>
               {!activeEvent.allowMultipleDistances && (
                 <div className="space-y-2">
-                  <Label htmlFor="tallaCamisa">Talla de Camisa *</Label>
+                  <Label htmlFor="tallaCamisa">
+                    Talla de Camisa{isShirtSelectionDisabled ? '' : ' *'}
+                  </Label>
                   <Select
                     value={formData.tallaCamisa}
                     onValueChange={(value) => setFormData(prev => ({ ...prev, tallaCamisa: value }))}
+                    disabled={isShirtSelectionDisabled}
                   >
                     <SelectTrigger id="tallaCamisa">
-                      <SelectValue placeholder="Selecciona la talla" />
+                      <SelectValue placeholder={isShirtSelectionDisabled ? 'Selección de camisa cerrada' : 'Selecciona la talla'} />
                     </SelectTrigger>
                     <SelectContent>
                       {tallasCamisa.map((talla) => (
@@ -671,6 +680,11 @@ const Inscripcion = () => {
                       ))}
                     </SelectContent>
                   </Select>
+                  {isShirtSelectionDisabled && (
+                    <p className="text-xs text-muted-foreground">
+                      El pedido de camisas ya cerró. Puedes completar tu inscripción sin seleccionar una talla.
+                    </p>
+                  )}
                 </div>
               )}
               <div className="space-y-2">

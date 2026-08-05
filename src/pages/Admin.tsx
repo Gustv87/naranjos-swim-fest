@@ -10,7 +10,7 @@ import { CountryCombobox } from '@/components/country-combobox';
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useRegistrations, type Registration, type RegistrationStatus, type RegistrationEditableFields, type RegistrationResult } from '@/context/registration-context';
-import { Lock, Shield, Users, QrCode, Search, Clock, XCircle, CheckCircle2, Pencil, Plus, AlertCircle, FileText, Play, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Lock, Shield, Shirt, Users, QrCode, Search, Clock, XCircle, CheckCircle2, Pencil, Plus, AlertCircle, FileText, Play, ChevronLeft, ChevronRight } from 'lucide-react';
 import logoImage from '@/assets/Logo.webp';
 import { auth, storage } from '@/lib/firebase';
 import { FirebaseError } from 'firebase/app';
@@ -195,6 +195,7 @@ const {
   const [eventSponsorFiles, setEventSponsorFiles] = useState<File[]>([]);
   const [isConvertingSponsorPdfs, setIsConvertingSponsorPdfs] = useState(false);
   const [isTogglingRegistrationLock, setIsTogglingRegistrationLock] = useState(false);
+  const [isTogglingShirtSelection, setIsTogglingShirtSelection] = useState(false);
   const [isClosingEvent, setIsClosingEvent] = useState(false);
   const [eventForm, setEventForm] = useState({
     name: '',
@@ -210,6 +211,7 @@ const {
     categoriesText: '',
     courseType: (activeEvent.courseType ?? 'open_water') as 'open_water' | 'pool',
     registrationsManuallyClosed: Boolean(activeEvent.registrationsManuallyClosed),
+    shirtSelectionDisabled: Boolean(activeEvent.shirtSelectionDisabled),
     allowMultipleDistances: false,
   });
 
@@ -400,6 +402,7 @@ const {
   const registrationStatus = getEventRegistrationStatus(activeEvent);
   const isHistoricalEvent = !activeEvent.acceptsRegistrations || activeEvent.status === 'past';
   const registrationsManuallyClosed = Boolean(activeEvent.registrationsManuallyClosed);
+  const shirtSelectionDisabled = Boolean(activeEvent.shirtSelectionDisabled);
   const canCreateInActiveEvent = !isReadOnlyMode && !isHistoricalEvent;
   const mutationDisabled = isReadOnlyMode || isHistoricalEvent;
   const showReadOnlyWarning = () => {
@@ -571,6 +574,7 @@ const {
       categoriesText: eventToEdit ? formatEventCategories(eventToEdit) : formatEventCategories(activeEvent),
       courseType: inferEventCourseType(eventDefaults),
       registrationsManuallyClosed: Boolean(eventToEdit?.registrationsManuallyClosed),
+      shirtSelectionDisabled: Boolean(eventToEdit?.shirtSelectionDisabled),
       allowMultipleDistances: Boolean(eventToEdit?.allowMultipleDistances),
     });
     setIsEventDialogOpen(true);
@@ -800,6 +804,7 @@ const {
         status: editingEventId ? activeEvent.status : 'active',
         acceptsRegistrations: editingEventId ? activeEvent.acceptsRegistrations : true,
         registrationsManuallyClosed: eventForm.registrationsManuallyClosed,
+        shirtSelectionDisabled: eventForm.shirtSelectionDisabled,
         allowMultipleDistances: eventForm.allowMultipleDistances,
         legacyWithoutEventId: editingEventId ? Boolean(activeEvent.legacyWithoutEventId) : false,
       };
@@ -860,6 +865,43 @@ const {
       });
     } finally {
       setIsTogglingRegistrationLock(false);
+    }
+  };
+
+  const handleShirtSelectionToggle = async () => {
+    if (isReadOnlyMode) {
+      showReadOnlyWarning();
+      return;
+    }
+
+    if (isHistoricalEvent) {
+      showHistoricalWarning();
+      return;
+    }
+
+    setIsTogglingShirtSelection(true);
+
+    try {
+      const nextDisabledValue = !shirtSelectionDisabled;
+      await updateEvent(activeEvent.id, {
+        ...activeEvent,
+        shirtSelectionDisabled: nextDisabledValue,
+      });
+
+      toast({
+        title: nextDisabledValue ? 'Selección de camisa cerrada' : 'Selección de camisa habilitada',
+        description: nextDisabledValue
+          ? 'Las nuevas inscripciones continuarán sin pedir talla de camisa.'
+          : 'Las nuevas inscripciones volverán a pedir la talla de camisa.',
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'No se pudo actualizar la selección de camisa',
+        description: error instanceof Error ? error.message : 'Intenta nuevamente.',
+      });
+    } finally {
+      setIsTogglingShirtSelection(false);
     }
   };
 
@@ -3727,7 +3769,7 @@ const {
         banco: values.banco.trim(),
         monto: calculatePaymentAmount(values.nacimiento, values.pais),
         referencia: values.referencia.trim(),
-        tallaCamisa: values.tallaCamisa?.trim() ?? '',
+        tallaCamisa: shirtSelectionDisabled ? '' : values.tallaCamisa?.trim() ?? '',
         comprobanteFile: null,
       }, { bypassRegistrationStatus: true });
 
@@ -3993,6 +4035,16 @@ const {
           </Alert>
         )}
 
+        {!isHistoricalEvent && shirtSelectionDisabled && (
+          <Alert className="mb-8 border-primary/30 bg-primary/5">
+            <Shirt className="h-4 w-4" />
+            <AlertTitle>Selección de camisa cerrada</AlertTitle>
+            <AlertDescription>
+              Las inscripciones siguen abiertas, pero los nuevos participantes ya no pueden escoger talla de camisa. Las tallas registradas anteriormente se conservan.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {!isHistoricalEvent && !registrationsManuallyClosed && registrationStatus.reason === 'after' && (
           <Alert className="mb-8">
             <AlertTitle>Inscripciones cerradas automáticamente</AlertTitle>
@@ -4148,6 +4200,20 @@ const {
               : registrationsManuallyClosed
                 ? 'Reabrir inscripciones'
                 : 'Bloquear inscripciones'}
+          </Button>
+          <Button
+            type="button"
+            variant={shirtSelectionDisabled ? 'default' : 'outline'}
+            onClick={handleShirtSelectionToggle}
+            disabled={isReadOnlyMode || isHistoricalEvent || isTogglingShirtSelection}
+            title={readOnlyTooltip || (isHistoricalEvent ? 'Evento histórico: no se puede cambiar la selección de camisa.' : undefined)}
+          >
+            <Shirt className="mr-2 h-4 w-4" />
+            {isTogglingShirtSelection
+              ? 'Actualizando...'
+              : shirtSelectionDisabled
+                ? 'Habilitar camisas'
+                : 'Deshabilitar camisas'}
           </Button>
           <Button
             type="button"
@@ -4851,6 +4917,18 @@ const {
                     </span>
                   </span>
                 </label>
+                <label className="flex items-start gap-3 rounded-lg border bg-muted/30 p-4 text-sm md:col-span-2">
+                  <Checkbox
+                    checked={eventForm.shirtSelectionDisabled}
+                    onCheckedChange={(value) => setEventForm((prev) => ({ ...prev, shirtSelectionDisabled: Boolean(value) }))}
+                  />
+                  <span>
+                    <span className="font-medium text-foreground">Deshabilitar selección de camisa</span>
+                    <span className="block text-muted-foreground">
+                      Mantiene abiertas las inscripciones, pero deja de pedir talla a los nuevos participantes.
+                    </span>
+                  </span>
+                </label>
                 <div className="space-y-1.5">
                   <Label>Precio (L)</Label>
                   <Input value={eventForm.price} onChange={(e) => setEventForm((prev) => ({ ...prev, price: e.target.value }))} required />
@@ -5513,7 +5591,15 @@ const {
                   </div>
                   <div className="space-y-1.5">
                     <Label>Talla de camisa</Label>
-                    <Input list="shirt-sizes" {...createForm.register('tallaCamisa')} />
+                    <Input
+                      list="shirt-sizes"
+                      {...createForm.register('tallaCamisa')}
+                      disabled={shirtSelectionDisabled}
+                      placeholder={shirtSelectionDisabled ? 'Selección cerrada' : undefined}
+                    />
+                    {shirtSelectionDisabled && (
+                      <p className="text-xs text-muted-foreground">El pedido de camisas está cerrado para esta competencia.</p>
+                    )}
                   </div>
                   <div className="space-y-1.5">
                     <Label>Contacto de emergencia</Label>
