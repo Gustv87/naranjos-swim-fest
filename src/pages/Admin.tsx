@@ -104,6 +104,7 @@ type ReportType =
   | 'name-age'
   | 'name-age-general'
   | 'name-age-team'
+  | 'name-category-dorsal'
   | 'results-event'
   | 'results-general'
   | 'competition-program'
@@ -2552,6 +2553,262 @@ const {
     });
   };
 
+  const handleExportNameCategoryDorsalReport = () => {
+    if (!filteredParticipants.length) {
+      toast({
+        title: 'Sin datos',
+        description: 'No hay registros que coincidan con los filtros actuales.',
+      });
+      return;
+    }
+
+    const participants = filteredParticipants.filter((participant) => participant.status !== 'rejected');
+    if (!participants.length) {
+      toast({
+        title: 'Sin datos',
+        description: 'No hay participantes activos con los filtros actuales.',
+      });
+      return;
+    }
+
+    const sortedParticipants = [...participants].sort((a, b) => {
+      const dorsalA = Number.parseInt(a.dorsal, 10);
+      const dorsalB = Number.parseInt(b.dorsal, 10);
+      const hasDorsalA = Number.isFinite(dorsalA);
+      const hasDorsalB = Number.isFinite(dorsalB);
+
+      if (hasDorsalA && hasDorsalB && dorsalA !== dorsalB) return dorsalA - dorsalB;
+      if (hasDorsalA !== hasDorsalB) return hasDorsalA ? -1 : 1;
+      return a.nombre.localeCompare(b.nombre, 'es');
+    });
+
+    const columnSize = Math.ceil(sortedParticipants.length / 2);
+    const leftColumn = sortedParticipants.slice(0, columnSize);
+    const rightColumn = sortedParticipants.slice(columnSize);
+    const renderParticipantCells = (participant?: Registration) => {
+      if (!participant) {
+        return '<td class="name-cell name-col empty-cell"></td><td class="category-cell category-col empty-cell"></td><td class="dorsal-cell dorsal-col empty-cell"></td>';
+      }
+
+      const category = distanceFilter
+        ? getParticipantCategory(participant, distanceFilter)
+        : getParticipantCategory(participant);
+
+      return `
+        <td class="name-cell name-col">${escapeHtml(participant.nombre)}</td>
+        <td class="category-cell category-col">${escapeHtml(category || 'Sin categoría')}</td>
+        <td class="dorsal-cell dorsal-col">${escapeHtml(participant.dorsal ? `#${participant.dorsal}` : 'Sin asignar')}</td>`;
+    };
+
+    const pairedRows = leftColumn.map((participant, index) => `
+      <tr>
+        ${renderParticipantCells(participant)}
+        <td class="column-gap"></td>
+        ${renderParticipantCells(rightColumn[index])}
+      </tr>`
+    ).join('');
+
+    const statusLabels: Record<string, string> = {
+      pending: 'Pendiente',
+      validated: 'Validado',
+      rejected: 'Rechazado',
+    };
+    const filtersSummary = [
+      searchTerm ? `Búsqueda: "${escapeHtml(searchTerm)}"` : null,
+      statusFilter ? `Estado: ${escapeHtml(statusLabels[statusFilter] ?? statusFilter)}` : null,
+      distanceFilter
+        ? `Distancia: ${escapeHtml(activeEvent.distances.find((item) => item.value === distanceFilter)?.label ?? distanceFilter)}`
+        : null,
+      categoryFilter ? `Categoría: ${escapeHtml(categoryFilter)}` : null,
+    ].filter(Boolean).join(' • ');
+
+    const exportWindow = window.open('', '_blank');
+    if (!exportWindow) {
+      toast({
+        variant: 'destructive',
+        title: 'No se pudo abrir la ventana',
+        description: 'Permite ventanas emergentes en tu navegador para generar el reporte.',
+      });
+      return;
+    }
+
+    const reportTitle = 'Nombre, categoría y dorsal';
+    const formattedNow = new Date().toLocaleString('es-HN', { dateStyle: 'medium', timeStyle: 'short' });
+    const logoMarkup = `<div class="logo"><img src="${logoImage}" alt="Swim Plus" /></div>`;
+    const filterMarkup = filtersSummary
+      ? `<p class="filters"><strong>Filtros aplicados:</strong> ${filtersSummary}</p>`
+      : '<p class="filters">Todos los participantes activos.</p>';
+
+    exportWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="es">
+        <head>
+          <meta charset="utf-8" />
+          <title>${escapeHtml(activeEvent.name)} - ${escapeHtml(reportTitle)}</title>
+          <style>
+            :root { color-scheme: only light; }
+            @page {
+              size: letter portrait;
+              margin: 10mm 10mm 14mm;
+            }
+            * { box-sizing: border-box; }
+            body {
+              font-family: Arial, Helvetica, sans-serif;
+              margin: 14px;
+              color: #111827;
+              background: #fff;
+            }
+            .logo {
+              text-align: center;
+              margin-bottom: 5px;
+            }
+            .logo img {
+              display: block;
+              width: auto;
+              max-width: 150px;
+              max-height: 64px;
+              margin: 0 auto;
+              object-fit: contain;
+            }
+            h1 {
+              margin: 0;
+              text-align: center;
+              font-size: 23px;
+              line-height: 1.2;
+            }
+            .subtitle {
+              margin: 3px 0 0;
+              text-align: center;
+              font-size: 16px;
+              font-weight: 700;
+              color: #0f5b78;
+            }
+            .meta {
+              margin: 3px 0 8px;
+              text-align: center;
+              font-size: 10px;
+              color: #6b7280;
+            }
+            .filters {
+              margin: 0 0 8px;
+              padding: 6px 8px;
+              border: 1px solid #d1d5db;
+              border-radius: 5px;
+              background: #f9fafb;
+              font-size: 10px;
+              line-height: 1.3;
+            }
+            .summary {
+              margin: 0 0 7px;
+              font-size: 11px;
+              font-weight: 700;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              table-layout: fixed;
+              font-size: 9.5px;
+              line-height: 1.16;
+            }
+            thead { display: table-header-group; }
+            tbody { display: table-row-group; }
+            th, td {
+              border: 1px solid #9ca3af;
+              padding: 4px 4.5px;
+              text-align: left;
+              vertical-align: middle;
+              overflow-wrap: anywhere;
+            }
+            th {
+              background: #e5eef2;
+              color: #111827;
+              font-size: 8.5px;
+              font-weight: 700;
+              text-transform: uppercase;
+            }
+            tbody tr:nth-child(even) { background: #f9fafb; }
+            tr {
+              break-inside: avoid;
+              page-break-inside: avoid;
+            }
+            .name-col { width: 24%; }
+            .category-col { width: 17%; }
+            .dorsal-col { width: 8%; text-align: center; white-space: nowrap; }
+            .column-gap {
+              width: 2%;
+              padding: 0;
+              border: 0 !important;
+              background: #fff !important;
+            }
+            .name-cell { font-weight: 600; }
+            .category-cell { font-size: 9px; }
+            .dorsal-cell {
+              white-space: nowrap;
+              font-size: 12px;
+              font-weight: 800;
+            }
+            .empty-cell {
+              background: #fff !important;
+            }
+            .print-footer {
+              display: none;
+            }
+            ${printActionsStyles}
+            @media print {
+              body { margin: 0; }
+              .filters { background: transparent; }
+              .print-footer {
+                position: fixed;
+                right: 0;
+                bottom: -9mm;
+                left: 0;
+                display: block;
+                text-align: center;
+                font-size: 8px;
+                color: #6b7280;
+              }
+              .print-footer::after {
+                content: " · Página " counter(page);
+              }
+            }
+          </style>
+        </head>
+        <body>
+          ${printActionsMarkup}
+          ${logoMarkup}
+          <h1>${escapeHtml(activeEvent.name)}</h1>
+          <p class="subtitle">${escapeHtml(reportTitle)}</p>
+          <p class="meta">Generado: ${escapeHtml(formattedNow)}</p>
+          ${filterMarkup}
+          <p class="summary">Total: ${sortedParticipants.length} participante${sortedParticipants.length === 1 ? '' : 's'}</p>
+          <table class="paired-table">
+            <thead>
+              <tr>
+                <th class="name-col">Nombre completo</th>
+                <th class="category-col">Categoría</th>
+                <th class="dorsal-col">Dorsal</th>
+                <th class="column-gap"></th>
+                <th class="name-col">Nombre completo</th>
+                <th class="category-col">Categoría</th>
+                <th class="dorsal-col">Dorsal</th>
+              </tr>
+            </thead>
+            <tbody>${pairedRows}</tbody>
+          </table>
+          <div class="print-footer">${escapeHtml(activeEvent.name)} - ${escapeHtml(reportTitle)}</div>
+          ${printReadyScript}
+        </body>
+      </html>
+    `);
+    exportWindow.document.close();
+    exportWindow.focus();
+
+    toast({
+      title: 'Reporte de nombre, categoría y dorsal listo',
+      description: 'Respeta los filtros actuales. Revisa el reporte y usa el botón "Imprimir reporte".',
+    });
+  };
+
   const handleExportHeats = () => {
     if (!isPoolEvent) {
       toast({
@@ -3404,6 +3661,9 @@ const {
       case 'name-age-team':
         handleExportNameAgeReport('team');
         break;
+      case 'name-category-dorsal':
+        handleExportNameCategoryDorsalReport();
+        break;
       case 'results-event':
         handleExportResultsReport('event');
         break;
@@ -4124,6 +4384,7 @@ const {
                 <SelectItem value="name-age">Nombre, edad y talla por categoría</SelectItem>
                 <SelectItem value="name-age-general">Nombre, edad y talla general</SelectItem>
                 <SelectItem value="name-age-team">Nombre, edad y talla por equipo</SelectItem>
+                <SelectItem value="name-category-dorsal">Nombre, categoría y dorsal</SelectItem>
                 <SelectItem value="results-event">Resultados por evento</SelectItem>
                 <SelectItem value="results-general">Resultados generales</SelectItem>
                 {isPoolEvent && (
