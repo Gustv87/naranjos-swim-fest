@@ -2659,16 +2659,19 @@ const {
               background: #fff;
             }
             .logo {
-              text-align: center;
-              margin-bottom: 5px;
+              width: 260px;
+              height: 88px;
+              margin: 0 auto 4px;
+              overflow: hidden;
             }
             .logo img {
               display: block;
-              width: auto;
-              max-width: 150px;
-              max-height: 64px;
-              margin: 0 auto;
-              object-fit: contain;
+              width: 100%;
+              height: 100%;
+              max-width: none;
+              max-height: none;
+              object-fit: cover;
+              object-position: center 45%;
             }
             h1 {
               margin: 0;
