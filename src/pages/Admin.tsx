@@ -2750,26 +2750,10 @@ const {
             .empty-cell {
               background: #fff !important;
             }
-            .print-footer {
-              display: none;
-            }
             ${printActionsStyles}
             @media print {
               body { margin: 0; }
               .filters { background: transparent; }
-              .print-footer {
-                position: fixed;
-                right: 0;
-                bottom: -9mm;
-                left: 0;
-                display: block;
-                text-align: center;
-                font-size: 8px;
-                color: #6b7280;
-              }
-              .print-footer::after {
-                content: " · Página " counter(page);
-              }
             }
           </style>
         </head>
@@ -2795,7 +2779,6 @@ const {
             </thead>
             <tbody>${pairedRows}</tbody>
           </table>
-          <div class="print-footer">${escapeHtml(activeEvent.name)} - ${escapeHtml(reportTitle)}</div>
           ${printReadyScript}
         </body>
       </html>
