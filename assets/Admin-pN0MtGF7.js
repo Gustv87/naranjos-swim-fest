@@ -1,4 +1,4 @@
-import{c as Mt,r as O,j as s,a as wr,t as io,R as tt,v as oo,_ as rn,d as lo,w as co,e as uo,u as mo,f as ho,x as fo,g as po,n as nn,s as ut,F as tr,l as sr,O as Vs,k as on,h as qt,m as go,y as xo,z as _s,B as ln,C as vo,D as cn,E as dn,G as un,H as mn,I as hn,J as yo,K as bo,S as ar}from"./index-BjDAVflx.js";import{N as rr,C as mt,b as ht,c as ft,d as jt,a as ya}from"./card-CCexU-jt.js";import{B as Q}from"./button-d1FUfDrE.js";import{I as Z,C as fn,S as _o,D as nr,a as ir,b as or,c as lr,d as cr,g as Bs,T as pn,e as dr,f as gn}from"./country-combobox-eGfu5raF.js";import{L as R,S as Tt,a as Dt,b as Rt,c as Pt,d as we}from"./select-DsfSIcVm.js";import{S as wo,l as is}from"./Logo-D7TiDcNe.js";import{F as jo,C as No}from"./file-text-BTjMFGbt.js";import{C as xn}from"./circle-check-D7fxiz-9.js";import{U as ko}from"./users-E86V5faV.js";/**
+import{c as Mt,r as O,j as s,a as wr,t as io,R as tt,v as oo,_ as rn,d as lo,w as co,e as uo,u as mo,f as ho,x as fo,g as po,n as nn,s as ut,F as tr,l as sr,O as Vs,k as on,h as qt,m as go,y as xo,z as _s,B as ln,C as vo,D as cn,E as dn,G as un,H as mn,I as hn,J as yo,K as bo,S as ar}from"./index-CI0DJBqQ.js";import{N as rr,C as mt,b as ht,c as ft,d as jt,a as ya}from"./card-Byalwxe8.js";import{B as Q}from"./button-B_1Kchzz.js";import{I as Z,C as fn,S as _o,D as nr,a as ir,b as or,c as lr,d as cr,g as Bs,T as pn,e as dr,f as gn}from"./country-combobox-jFV5gRjH.js";import{L as R,S as Tt,a as Dt,b as Rt,c as Pt,d as we}from"./select-CSkAz8vW.js";import{S as wo,l as is}from"./Logo-Cd1i6OmG.js";import{F as jo,C as No}from"./file-text-BG_qAX1-.js";import{C as xn}from"./circle-check-DSW8TFGJ.js";import{U as ko}from"./users-CaAG66EX.js";/**
  * @license lucide-react v0.462.0 - ISC
  *
  * This source code is licensed under the ISC license.
@@ -667,16 +667,19 @@ import{c as Mt,r as O,j as s,a as wr,t as io,R as tt,v as oo,_ as rn,d as lo,w a
               background: #fff;
             }
             .logo {
-              text-align: center;
-              margin-bottom: 5px;
+              width: 260px;
+              height: 88px;
+              margin: 0 auto 4px;
+              overflow: hidden;
             }
             .logo img {
               display: block;
-              width: auto;
-              max-width: 150px;
-              max-height: 64px;
-              margin: 0 auto;
-              object-fit: contain;
+              width: 100%;
+              height: 100%;
+              max-width: none;
+              max-height: none;
+              object-fit: cover;
+              object-position: center 45%;
             }
             h1 {
               margin: 0;
