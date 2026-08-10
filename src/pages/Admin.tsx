@@ -207,6 +207,7 @@ const {
     price: '600',
     paymentInfo: '',
     posterImageUrl: '',
+    photoGalleryUrl: '',
     sponsorImageUrls: [] as string[],
     distancesText: '',
     categoriesText: '',
@@ -570,6 +571,7 @@ const {
       price: eventToEdit?.price || activeEvent.price || '600',
       paymentInfo: eventToEdit?.paymentInfo ?? activeEvent.paymentInfo,
       posterImageUrl: eventToEdit?.posterImageUrl ?? '',
+      photoGalleryUrl: eventToEdit?.photoGalleryUrl ?? '',
       sponsorImageUrls: eventToEdit?.sponsorImageUrls ?? [],
       distancesText: eventDefaults.distances.map((distance) => distance.value).join(', '),
       categoriesText: eventToEdit ? formatEventCategories(eventToEdit) : formatEventCategories(activeEvent),
@@ -776,6 +778,20 @@ const {
         throw new Error('Completa nombre, fecha del evento y cierre de inscripción.');
       }
 
+      const photoGalleryUrl = eventForm.photoGalleryUrl.trim();
+      if (photoGalleryUrl) {
+        let parsedGalleryUrl: URL;
+        try {
+          parsedGalleryUrl = new URL(photoGalleryUrl);
+        } catch {
+          throw new Error('El enlace de fotografías no es una URL válida.');
+        }
+
+        if (parsedGalleryUrl.protocol !== 'https:' || parsedGalleryUrl.hostname.toLowerCase() !== 'drive.google.com') {
+          throw new Error('El enlace de fotografías debe ser un enlace público de Google Drive.');
+        }
+      }
+
       const id = editingEventId ?? `${slugify(eventForm.name)}-${eventForm.date.slice(0, 4)}`;
       if (!id) {
         throw new Error('No se pudo generar el identificador del evento.');
@@ -798,6 +814,7 @@ const {
         price: eventForm.price.trim(),
         paymentInfo: eventForm.paymentInfo.trim(),
         posterImageUrl,
+        photoGalleryUrl,
         sponsorImageUrls,
         capacityLimit: editingEventId ? activeEvent.capacityLimit : null,
         distances: parseDistances(eventForm.distancesText),
@@ -5216,6 +5233,19 @@ const {
                   />
                   <p className="text-xs text-muted-foreground">
                     Pega una URL pública de la imagen. Se usará como fondo en la tarjeta y en el detalle del evento.
+                  </p>
+                </div>
+                <div className="space-y-1.5 rounded-lg border border-primary/20 bg-primary/5 p-4 md:col-span-2">
+                  <Label htmlFor="eventPhotoGalleryUrl">Enlace de fotografías (Google Drive)</Label>
+                  <Input
+                    id="eventPhotoGalleryUrl"
+                    type="url"
+                    value={eventForm.photoGalleryUrl}
+                    onChange={(e) => setEventForm((prev) => ({ ...prev, photoGalleryUrl: e.target.value }))}
+                    placeholder="https://drive.google.com/drive/folders/..."
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Este enlace es exclusivo de esta competencia. Mientras esté vacío, el sitio mostrará que las fotografías estarán disponibles próximamente.
                   </p>
                 </div>
                 <div className="space-y-1.5 md:col-span-2">

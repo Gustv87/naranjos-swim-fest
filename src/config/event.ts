@@ -20,6 +20,7 @@ export type EventConfig = {
   paymentInfo: string;
   posterImageUrl?: string;
   sponsorImageUrls?: string[];
+  photoGalleryUrl?: string;
   capacityLimit: number | null;
   distances: EventDistance[];
   courseType?: 'open_water' | 'pool';

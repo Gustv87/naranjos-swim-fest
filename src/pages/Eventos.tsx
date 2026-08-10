@@ -12,7 +12,7 @@ import { useRegistrations } from '@/context/registration-context';
 import { getEventRegistrationStatus, type EventConfig } from '@/config/event';
 import { AGE_BASED_REGISTRATION_FEE_TEXT } from '@/lib/registration-categories';
 import type { ReactNode } from 'react';
-import { ArrowLeft, Calendar, CheckCircle2, Clock, FileText, MapPin, Phone, Trophy, Users } from 'lucide-react';
+import { ArrowLeft, Calendar, Camera, CheckCircle2, Clock, ExternalLink, FileText, MapPin, Phone, Trophy, Users } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import heroImageJpg from '@/assets/lago-yojoa-hero.jpg';
@@ -89,6 +89,19 @@ const eventStatusVariant = (event: EventConfig) => {
   return 'secondary';
 };
 
+const getDriveGalleryUrl = (value?: string) => {
+  if (!value?.trim()) return '';
+
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === 'https:' && url.hostname.toLowerCase() === 'drive.google.com'
+      ? url.toString()
+      : '';
+  } catch {
+    return '';
+  }
+};
+
 const Eventos = () => {
   const { eventId } = useParams();
   const { events, activeEvent, activeEventId, setActiveEventId, stats, isLoading } = useRegistrations();
@@ -136,6 +149,7 @@ const Eventos = () => {
     const isSelectedEventLoaded = activeEvent.id === selectedEvent.id;
     const isCapacityFull = isSelectedEventLoaded && stats.capacityFull;
     const canRegister = registrationState.isOpen && !isCapacityFull;
+    const photoGalleryUrl = getDriveGalleryUrl(selectedEvent.photoGalleryUrl);
 
     return (
       <div className="min-h-screen bg-background flex flex-col">
@@ -293,6 +307,46 @@ const Eventos = () => {
                   </CardContent>
                 </Card>
               </aside>
+            </div>
+          </section>
+
+          <section className="border-t bg-gradient-to-br from-primary/10 via-background to-background px-4 py-14" aria-labelledby="event-photos-title">
+            <div className="mx-auto max-w-6xl">
+              <Card className="overflow-hidden border-primary/20 shadow-card">
+                <CardContent className="grid gap-8 p-6 md:grid-cols-[1fr_auto] md:items-center md:p-8">
+                  <div className="flex items-start gap-4">
+                    <div className="rounded-2xl bg-primary/10 p-4 text-primary">
+                      <Camera className="h-8 w-8" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <Badge variant="secondary" className="mb-3">Galería de la competencia</Badge>
+                      <h2 id="event-photos-title" className="text-2xl font-bold text-foreground md:text-3xl">
+                        Fotografías del evento
+                      </h2>
+                      <p className="mt-2 max-w-2xl text-muted-foreground">
+                        {photoGalleryUrl
+                          ? `Revive los mejores momentos de ${selectedEvent.name} en su galería oficial.`
+                          : `Las fotografías de ${selectedEvent.name} se publicarán aquí cuando estén disponibles.`}
+                      </p>
+                    </div>
+                  </div>
+
+                  {photoGalleryUrl ? (
+                    <Button asChild size="lg" className="w-full md:w-auto">
+                      <a href={photoGalleryUrl} target="_blank" rel="noopener noreferrer">
+                        <Camera className="mr-2 h-5 w-5" />
+                        Ver fotografías
+                        <ExternalLink className="ml-2 h-4 w-4" />
+                      </a>
+                    </Button>
+                  ) : (
+                    <Button size="lg" variant="outline" className="w-full md:w-auto" disabled>
+                      <Camera className="mr-2 h-5 w-5" />
+                      Fotografías próximamente
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
             </div>
           </section>
 
