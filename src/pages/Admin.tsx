@@ -787,8 +787,8 @@ const {
           throw new Error('El enlace de fotografías no es una URL válida.');
         }
 
-        if (parsedGalleryUrl.protocol !== 'https:' || parsedGalleryUrl.hostname.toLowerCase() !== 'drive.google.com') {
-          throw new Error('El enlace de fotografías debe ser un enlace público de Google Drive.');
+        if (parsedGalleryUrl.protocol !== 'https:') {
+          throw new Error('El enlace de fotografías debe ser público y comenzar con https://.');
         }
       }
 
@@ -5236,16 +5236,16 @@ const {
                   </p>
                 </div>
                 <div className="space-y-1.5 rounded-lg border border-primary/20 bg-primary/5 p-4 md:col-span-2">
-                  <Label htmlFor="eventPhotoGalleryUrl">Enlace de fotografías (Google Drive)</Label>
+                  <Label htmlFor="eventPhotoGalleryUrl">Enlace público de fotografías</Label>
                   <Input
                     id="eventPhotoGalleryUrl"
                     type="url"
                     value={eventForm.photoGalleryUrl}
                     onChange={(e) => setEventForm((prev) => ({ ...prev, photoGalleryUrl: e.target.value }))}
-                    placeholder="https://drive.google.com/drive/folders/..."
+                    placeholder="https://photos.google.com/... o cualquier enlace público"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Este enlace es exclusivo de esta competencia. Mientras esté vacío, el sitio mostrará que las fotografías estarán disponibles próximamente.
+                    Puedes usar Google Photos, MEGA, TeraBox, pCloud, Flickr, Dropbox u otro proveedor con enlace público https://. Este enlace es exclusivo de esta competencia.
                   </p>
                 </div>
                 <div className="space-y-1.5 md:col-span-2">

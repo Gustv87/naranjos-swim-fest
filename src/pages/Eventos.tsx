@@ -89,14 +89,12 @@ const eventStatusVariant = (event: EventConfig) => {
   return 'secondary';
 };
 
-const getDriveGalleryUrl = (value?: string) => {
+const getPhotoGalleryUrl = (value?: string) => {
   if (!value?.trim()) return '';
 
   try {
     const url = new URL(value.trim());
-    return url.protocol === 'https:' && url.hostname.toLowerCase() === 'drive.google.com'
-      ? url.toString()
-      : '';
+    return url.protocol === 'https:' ? url.toString() : '';
   } catch {
     return '';
   }
@@ -149,7 +147,7 @@ const Eventos = () => {
     const isSelectedEventLoaded = activeEvent.id === selectedEvent.id;
     const isCapacityFull = isSelectedEventLoaded && stats.capacityFull;
     const canRegister = registrationState.isOpen && !isCapacityFull;
-    const photoGalleryUrl = getDriveGalleryUrl(selectedEvent.photoGalleryUrl);
+    const photoGalleryUrl = getPhotoGalleryUrl(selectedEvent.photoGalleryUrl);
 
     return (
       <div className="min-h-screen bg-background flex flex-col">
