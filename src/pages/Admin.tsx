@@ -10,7 +10,7 @@ import { CountryCombobox } from '@/components/country-combobox';
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useRegistrations, type Registration, type RegistrationStatus, type RegistrationEditableFields, type RegistrationResult } from '@/context/registration-context';
-import { Lock, Shield, Shirt, Users, QrCode, Search, Clock, XCircle, CheckCircle2, Pencil, Plus, AlertCircle, FileText, Play, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Lock, Shield, Shirt, Users, QrCode, Search, Clock, XCircle, CheckCircle2, Pencil, Plus, AlertCircle, FileText, Play, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import logoImage from '@/assets/Logo.webp';
 import { auth, storage } from '@/lib/firebase';
 import { FirebaseError } from 'firebase/app';
@@ -208,6 +208,7 @@ const {
     paymentInfo: '',
     posterImageUrl: '',
     photoGalleryUrl: '',
+    photoGalleryLinks: [] as Array<{ label: string; url: string }>,
     sponsorImageUrls: [] as string[],
     distancesText: '',
     categoriesText: '',
@@ -572,6 +573,7 @@ const {
       paymentInfo: eventToEdit?.paymentInfo ?? activeEvent.paymentInfo,
       posterImageUrl: eventToEdit?.posterImageUrl ?? '',
       photoGalleryUrl: eventToEdit?.photoGalleryUrl ?? '',
+      photoGalleryLinks: (eventToEdit?.photoGalleryLinks ?? []).map((gallery) => ({ ...gallery })),
       sponsorImageUrls: eventToEdit?.sponsorImageUrls ?? [],
       distancesText: eventDefaults.distances.map((distance) => distance.value).join(', '),
       categoriesText: eventToEdit ? formatEventCategories(eventToEdit) : formatEventCategories(activeEvent),
@@ -792,6 +794,30 @@ const {
         }
       }
 
+      const photoGalleryLinks = eventForm.photoGalleryLinks
+        .map((gallery) => ({
+          label: gallery.label.trim(),
+          url: gallery.url.trim(),
+        }))
+        .filter((gallery) => gallery.label || gallery.url);
+
+      photoGalleryLinks.forEach((gallery, index) => {
+        if (!gallery.label || !gallery.url) {
+          throw new Error(`Completa el nombre y el enlace del botón de fotografías ${index + 1}.`);
+        }
+
+        let parsedGalleryUrl: URL;
+        try {
+          parsedGalleryUrl = new URL(gallery.url);
+        } catch {
+          throw new Error(`El enlace del botón de fotografías ${index + 1} no es una URL válida.`);
+        }
+
+        if (parsedGalleryUrl.protocol !== 'https:') {
+          throw new Error(`El enlace del botón de fotografías ${index + 1} debe comenzar con https://.`);
+        }
+      });
+
       const id = editingEventId ?? `${slugify(eventForm.name)}-${eventForm.date.slice(0, 4)}`;
       if (!id) {
         throw new Error('No se pudo generar el identificador del evento.');
@@ -815,6 +841,7 @@ const {
         paymentInfo: eventForm.paymentInfo.trim(),
         posterImageUrl,
         photoGalleryUrl,
+        photoGalleryLinks,
         sponsorImageUrls,
         capacityLimit: editingEventId ? activeEvent.capacityLimit : null,
         distances: parseDistances(eventForm.distancesText),
@@ -5247,6 +5274,86 @@ const {
                   <p className="text-xs text-muted-foreground">
                     Puedes usar Google Photos, MEGA, TeraBox, pCloud, Flickr, Dropbox u otro proveedor con enlace público https://. Este enlace es exclusivo de esta competencia.
                   </p>
+                </div>
+                <div className="space-y-3 rounded-lg border border-primary/20 bg-primary/5 p-4 md:col-span-2">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <Label>Botones adicionales de fotografías</Label>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Agrega otras galerías de esta competencia, por ejemplo “Fotos Puerto Man”.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setEventForm((prev) => ({
+                        ...prev,
+                        photoGalleryLinks: [...prev.photoGalleryLinks, { label: '', url: '' }],
+                      }))}
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Agregar botón
+                    </Button>
+                  </div>
+
+                  {eventForm.photoGalleryLinks.length === 0 ? (
+                    <p className="rounded-md border border-dashed bg-background/60 px-3 py-4 text-center text-sm text-muted-foreground">
+                      No hay botones adicionales.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {eventForm.photoGalleryLinks.map((gallery, index) => (
+                        <div
+                          key={index}
+                          className="grid gap-3 rounded-md border bg-background p-3 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.4fr)_auto] md:items-end"
+                        >
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`eventPhotoGalleryLabel-${index}`}>Texto del botón</Label>
+                            <Input
+                              id={`eventPhotoGalleryLabel-${index}`}
+                              value={gallery.label}
+                              onChange={(event) => setEventForm((prev) => ({
+                                ...prev,
+                                photoGalleryLinks: prev.photoGalleryLinks.map((item, itemIndex) => (
+                                  itemIndex === index ? { ...item, label: event.target.value } : item
+                                )),
+                              }))}
+                              placeholder="Fotos Puerto Man"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`eventPhotoGalleryLink-${index}`}>Enlace público</Label>
+                            <Input
+                              id={`eventPhotoGalleryLink-${index}`}
+                              type="url"
+                              value={gallery.url}
+                              onChange={(event) => setEventForm((prev) => ({
+                                ...prev,
+                                photoGalleryLinks: prev.photoGalleryLinks.map((item, itemIndex) => (
+                                  itemIndex === index ? { ...item, url: event.target.value } : item
+                                )),
+                              }))}
+                              placeholder="https://www.mediafire.com/..."
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="outline"
+                            title="Eliminar botón"
+                            aria-label={`Eliminar botón de fotografías ${index + 1}`}
+                            onClick={() => setEventForm((prev) => ({
+                              ...prev,
+                              photoGalleryLinks: prev.photoGalleryLinks.filter((_, itemIndex) => itemIndex !== index),
+                            }))}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-1.5 md:col-span-2">
                   <Label htmlFor="eventPosterFile">Subir afiche desde tu computadora</Label>

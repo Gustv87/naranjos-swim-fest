@@ -270,6 +270,14 @@ const normalizeEvent = (id: string, data: Partial<EventConfig>): EventConfig => 
       : fallback.courseType,
     posterImageUrl: data.posterImageUrl ? String(data.posterImageUrl) : undefined,
     photoGalleryUrl: data.photoGalleryUrl ? String(data.photoGalleryUrl).trim() : undefined,
+    photoGalleryLinks: Array.isArray(data.photoGalleryLinks)
+      ? data.photoGalleryLinks
+          .map((gallery) => ({
+            label: String(gallery?.label ?? '').trim(),
+            url: String(gallery?.url ?? '').trim(),
+          }))
+          .filter((gallery) => gallery.label && gallery.url)
+      : [],
     sponsorImageUrls: Array.isArray(data.sponsorImageUrls)
       ? data.sponsorImageUrls.map(String).filter(Boolean)
       : [],

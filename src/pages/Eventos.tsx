@@ -148,6 +148,15 @@ const Eventos = () => {
     const isCapacityFull = isSelectedEventLoaded && stats.capacityFull;
     const canRegister = registrationState.isOpen && !isCapacityFull;
     const photoGalleryUrl = getPhotoGalleryUrl(selectedEvent.photoGalleryUrl);
+    const galleryButtons = Array.from(new Map([
+      ...(photoGalleryUrl ? [{ label: 'Ver fotografías', url: photoGalleryUrl }] : []),
+      ...(selectedEvent.photoGalleryLinks ?? [])
+        .map((gallery) => ({
+          label: gallery.label.trim(),
+          url: getPhotoGalleryUrl(gallery.url),
+        }))
+        .filter((gallery) => gallery.label && gallery.url),
+    ].map((gallery) => [gallery.url, gallery])).values());
 
     return (
       <div className="min-h-screen bg-background flex flex-col">
@@ -322,21 +331,31 @@ const Eventos = () => {
                         Fotografías del evento
                       </h2>
                       <p className="mt-2 max-w-2xl text-muted-foreground">
-                        {photoGalleryUrl
+                        {galleryButtons.length > 0
                           ? `Revive los mejores momentos de ${selectedEvent.name} en su galería oficial.`
                           : `Las fotografías de ${selectedEvent.name} se publicarán aquí cuando estén disponibles.`}
                       </p>
                     </div>
                   </div>
 
-                  {photoGalleryUrl ? (
-                    <Button asChild size="lg" className="w-full md:w-auto">
-                      <a href={photoGalleryUrl} target="_blank" rel="noopener noreferrer">
-                        <Camera className="mr-2 h-5 w-5" />
-                        Ver fotografías
-                        <ExternalLink className="ml-2 h-4 w-4" />
-                      </a>
-                    </Button>
+                  {galleryButtons.length > 0 ? (
+                    <div className="flex w-full flex-col gap-3 md:w-auto">
+                      {galleryButtons.map((gallery, index) => (
+                        <Button
+                          key={`${gallery.label}-${gallery.url}`}
+                          asChild
+                          size="lg"
+                          variant={index === 0 ? 'default' : 'outline'}
+                          className="w-full md:w-auto"
+                        >
+                          <a href={gallery.url} target="_blank" rel="noopener noreferrer">
+                            <Camera className="mr-2 h-5 w-5" />
+                            {gallery.label}
+                            <ExternalLink className="ml-2 h-4 w-4" />
+                          </a>
+                        </Button>
+                      ))}
+                    </div>
                   ) : (
                     <Button size="lg" variant="outline" className="w-full md:w-auto" disabled>
                       <Camera className="mr-2 h-5 w-5" />

@@ -7,6 +7,11 @@ export const REGISTRATION_CLOSE_DATETIME = '2026-08-07T23:59:59-06:00';
 
 export const LEGACY_EVENT_ID = 'los-naranjos-2025';
 
+export type EventPhotoGalleryLink = {
+  label: string;
+  url: string;
+};
+
 export type EventConfig = {
   id: string;
   name: string;
@@ -21,6 +26,7 @@ export type EventConfig = {
   posterImageUrl?: string;
   sponsorImageUrls?: string[];
   photoGalleryUrl?: string;
+  photoGalleryLinks?: EventPhotoGalleryLink[];
   capacityLimit: number | null;
   distances: EventDistance[];
   courseType?: 'open_water' | 'pool';
