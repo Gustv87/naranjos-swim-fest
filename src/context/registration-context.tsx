@@ -278,6 +278,9 @@ const normalizeEvent = (id: string, data: Partial<EventConfig>): EventConfig => 
           }))
           .filter((gallery) => gallery.label && gallery.url)
       : [],
+    presentationMode: data.presentationMode === 'sponsored_gallery'
+      ? 'sponsored_gallery'
+      : 'competition',
     sponsorImageUrls: Array.isArray(data.sponsorImageUrls)
       ? data.sponsorImageUrls.map(String).filter(Boolean)
       : [],

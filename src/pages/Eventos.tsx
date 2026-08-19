@@ -100,6 +100,22 @@ const getPhotoGalleryUrl = (value?: string) => {
   }
 };
 
+const isSponsoredGalleryEvent = (event: EventConfig) => event.presentationMode === 'sponsored_gallery';
+
+const getEventGalleryButtons = (event: EventConfig) => {
+  const primaryGalleryUrl = getPhotoGalleryUrl(event.photoGalleryUrl);
+
+  return Array.from(new Map([
+    ...(primaryGalleryUrl ? [{ label: 'Ver fotografías', url: primaryGalleryUrl }] : []),
+    ...(event.photoGalleryLinks ?? [])
+      .map((gallery) => ({
+        label: gallery.label.trim(),
+        url: getPhotoGalleryUrl(gallery.url),
+      }))
+      .filter((gallery) => gallery.label && gallery.url),
+  ].map((gallery) => [gallery.url, gallery])).values());
+};
+
 const Eventos = () => {
   const { eventId } = useParams();
   const { events, activeEvent, activeEventId, setActiveEventId, stats, isLoading } = useRegistrations();
@@ -117,8 +133,10 @@ const Eventos = () => {
     }
   }, [activeEventId, selectedEvent, setActiveEventId]);
 
-  const upcomingEvents = sortedEvents.filter((event) => event.status !== 'past');
-  const pastEvents = sortedEvents.filter((event) => event.status === 'past');
+  const competitionEvents = sortedEvents.filter((event) => !isSponsoredGalleryEvent(event));
+  const sponsoredEvents = sortedEvents.filter(isSponsoredGalleryEvent);
+  const upcomingEvents = competitionEvents.filter((event) => event.status !== 'past');
+  const pastEvents = competitionEvents.filter((event) => event.status === 'past');
 
   if (eventId && !selectedEvent) {
     return (
@@ -147,16 +165,8 @@ const Eventos = () => {
     const isSelectedEventLoaded = activeEvent.id === selectedEvent.id;
     const isCapacityFull = isSelectedEventLoaded && stats.capacityFull;
     const canRegister = registrationState.isOpen && !isCapacityFull;
-    const photoGalleryUrl = getPhotoGalleryUrl(selectedEvent.photoGalleryUrl);
-    const galleryButtons = Array.from(new Map([
-      ...(photoGalleryUrl ? [{ label: 'Ver fotografías', url: photoGalleryUrl }] : []),
-      ...(selectedEvent.photoGalleryLinks ?? [])
-        .map((gallery) => ({
-          label: gallery.label.trim(),
-          url: getPhotoGalleryUrl(gallery.url),
-        }))
-        .filter((gallery) => gallery.label && gallery.url),
-    ].map((gallery) => [gallery.url, gallery])).values());
+    const isSponsoredGallery = isSponsoredGalleryEvent(selectedEvent);
+    const galleryButtons = getEventGalleryButtons(selectedEvent);
 
     return (
       <div className="min-h-screen bg-background flex flex-col">
@@ -203,117 +213,153 @@ const Eventos = () => {
 
               <div className="max-w-4xl space-y-6">
                 <Badge variant="secondary" className="bg-white/20 text-white border-white/30">
-                  {registrationState.label}
+                  {isSponsoredGallery ? 'Evento patrocinado' : registrationState.label}
                 </Badge>
                 <h1 className="text-4xl md:text-6xl font-bold leading-tight">{selectedEvent.name}</h1>
                 <p className="text-lg md:text-2xl text-white/90 max-w-3xl">
-                  {formatDate(selectedEvent.dateTime)} en {selectedEvent.locationShort}.
+                  {isSponsoredGallery
+                    ? `Swim+ participó como patrocinador el ${formatDate(selectedEvent.dateTime)} en ${selectedEvent.locationShort}.`
+                    : `${formatDate(selectedEvent.dateTime)} en ${selectedEvent.locationShort}.`}
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                  <Button
-                    asChild={canRegister}
-                    disabled={!canRegister}
-                    size="lg"
-                    className="button-gradient shadow-button text-base px-7 py-6 h-auto font-semibold disabled:opacity-60"
-                  >
-                    {canRegister ? (
-                      <Link to={`/eventos/${selectedEvent.id}/inscripcion`}>Inscribirme</Link>
+                  {isSponsoredGallery ? (
+                    galleryButtons.length > 0 ? (
+                      <Button asChild size="lg" className="button-gradient shadow-button text-base px-7 py-6 h-auto font-semibold">
+                        <a href={galleryButtons[0].url} target="_blank" rel="noopener noreferrer">
+                          <Camera className="mr-2 h-5 w-5" />
+                          {galleryButtons[0].label}
+                          <ExternalLink className="ml-2 h-4 w-4" />
+                        </a>
+                      </Button>
                     ) : (
-                      <span>{isCapacityFull ? 'Cupo agotado' : registrationState.label}</span>
-                    )}
-                  </Button>
-                  <Button asChild size="lg" variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/20 text-base px-7 py-6 h-auto">
-                    <Link to={`/eventos/${selectedEvent.id}/reglamento`}>
-                      <FileText className="mr-2 h-5 w-5" />
-                      Reglamento
-                    </Link>
-                  </Button>
-                  <Button asChild size="lg" variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/20 text-base px-7 py-6 h-auto">
-                    <Link to={`/eventos/${selectedEvent.id}/resultados`}>
-                      <Trophy className="mr-2 h-5 w-5" />
-                      Ver resultados
-                    </Link>
-                  </Button>
+                      <Button size="lg" disabled className="text-base px-7 py-6 h-auto">
+                        Fotografías próximamente
+                      </Button>
+                    )
+                  ) : (
+                    <>
+                      <Button
+                        asChild={canRegister}
+                        disabled={!canRegister}
+                        size="lg"
+                        className="button-gradient shadow-button text-base px-7 py-6 h-auto font-semibold disabled:opacity-60"
+                      >
+                        {canRegister ? (
+                          <Link to={`/eventos/${selectedEvent.id}/inscripcion`}>Inscribirme</Link>
+                        ) : (
+                          <span>{isCapacityFull ? 'Cupo agotado' : registrationState.label}</span>
+                        )}
+                      </Button>
+                      <Button asChild size="lg" variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/20 text-base px-7 py-6 h-auto">
+                        <Link to={`/eventos/${selectedEvent.id}/reglamento`}>
+                          <FileText className="mr-2 h-5 w-5" />
+                          Reglamento
+                        </Link>
+                      </Button>
+                      <Button asChild size="lg" variant="outline" className="bg-white/10 border-white/30 text-white hover:bg-white/20 text-base px-7 py-6 h-auto">
+                        <Link to={`/eventos/${selectedEvent.id}/resultados`}>
+                          <Trophy className="mr-2 h-5 w-5" />
+                          Ver resultados
+                        </Link>
+                      </Button>
+                    </>
+                  )}
                 </div>
-                <div className="max-w-md rounded-lg border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
-                  <p className="mb-3 text-sm font-semibold text-white/90">Cuenta regresiva</p>
-                  <Countdown targetDate={new Date(selectedEvent.dateTime)} />
-                </div>
+                {!isSponsoredGallery && (
+                  <div className="max-w-md rounded-lg border border-white/20 bg-white/10 p-4 backdrop-blur-sm">
+                    <p className="mb-3 text-sm font-semibold text-white/90">Cuenta regresiva</p>
+                    <Countdown targetDate={new Date(selectedEvent.dateTime)} />
+                  </div>
+                )}
               </div>
             </div>
           </section>
 
           <section className="px-4 py-14">
-            <div className="max-w-6xl mx-auto grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
+            <div className={`max-w-6xl mx-auto grid gap-8 ${isSponsoredGallery ? '' : 'lg:grid-cols-[1.2fr_0.8fr]'}`}>
               <div className="space-y-8">
                 <Card className="card-gradient shadow-card">
                   <CardHeader>
                     <CardTitle className="text-2xl text-primary">Información del evento</CardTitle>
-                    <CardDescription>{registrationState.description}</CardDescription>
+                    <CardDescription>
+                      {isSponsoredGallery
+                        ? 'Esta actividad fue organizada por terceros. Swim+ participó como patrocinador y comparte esta galería con la comunidad.'
+                        : registrationState.description}
+                    </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-5">
                     <div className="grid gap-4 sm:grid-cols-2">
                       <EventFact icon={<Calendar className="h-5 w-5" />} label="Fecha" value={formatDate(selectedEvent.dateTime)} />
                       <EventFact icon={<Clock className="h-5 w-5" />} label="Hora" value={new Date(selectedEvent.dateTime).toLocaleTimeString('es-HN', { hour: '2-digit', minute: '2-digit' })} />
                       <EventFact icon={<MapPin className="h-5 w-5" />} label="Ubicación" value={selectedEvent.location} />
-                      <EventFact icon={<Users className="h-5 w-5" />} label="Inscripción" value={getRegistrationPriceLabel(selectedEvent)} />
-                      <EventFact icon={<Phone className="h-5 w-5" />} label="Más información" value="+504 3343-8768" />
+                      {isSponsoredGallery ? (
+                        <EventFact icon={<Trophy className="h-5 w-5" />} label="Participación de Swim+" value="Patrocinador del evento" />
+                      ) : (
+                        <>
+                          <EventFact icon={<Users className="h-5 w-5" />} label="Inscripción" value={getRegistrationPriceLabel(selectedEvent)} />
+                          <EventFact icon={<Phone className="h-5 w-5" />} label="Más información" value="+504 3343-8768" />
+                        </>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
 
-                <Card className="card-gradient shadow-card">
-                  <CardHeader>
-                    <CardTitle className="text-2xl text-primary">
-                      {selectedEvent.allowMultipleDistances ? 'Pruebas y categorías' : 'Distancias y categorías'}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="grid gap-5 md:grid-cols-3">
-                    {selectedEvent.distances.map((distance) => (
-                      <div key={distance.value} className="rounded-lg border bg-card p-5">
-                        <p className="text-3xl font-bold text-primary">{distance.value}</p>
-                        <p className="mt-1 text-sm text-muted-foreground">{distance.label}</p>
-                        <div className="mt-4 space-y-2">
-                          {distance.categories.map((category) => (
-                            <div key={category.label} className="flex items-start gap-2 text-sm">
-                              <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                              <span>{category.label}</span>
-                            </div>
-                          ))}
+                {!isSponsoredGallery && (
+                  <Card className="card-gradient shadow-card">
+                    <CardHeader>
+                      <CardTitle className="text-2xl text-primary">
+                        {selectedEvent.allowMultipleDistances ? 'Pruebas y categorías' : 'Distancias y categorías'}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid gap-5 md:grid-cols-3">
+                      {selectedEvent.distances.map((distance) => (
+                        <div key={distance.value} className="rounded-lg border bg-card p-5">
+                          <p className="text-3xl font-bold text-primary">{distance.value}</p>
+                          <p className="mt-1 text-sm text-muted-foreground">{distance.label}</p>
+                          <div className="mt-4 space-y-2">
+                            {distance.categories.map((category) => (
+                              <div key={category.label} className="flex items-start gap-2 text-sm">
+                                <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                                <span>{category.label}</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
+                      ))}
+                    </CardContent>
+                  </Card>
+                )}
               </div>
 
-              <aside className="space-y-6">
-                <Card className="card-gradient shadow-card">
-                  <CardHeader>
-                    <CardTitle className="text-xl text-primary">Disponibilidad</CardTitle>
-                    <CardDescription>
-                      {isSelectedEventLoaded ? 'Cupos registrados para este evento.' : 'Cargando cupos del evento.'}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {isSelectedEventLoaded && !isLoading ? (
-                      <CapacityIndicator current={stats.total} max={stats.max} />
-                    ) : (
-                      <p className="text-sm text-muted-foreground">Cargando disponibilidad...</p>
-                    )}
-                  </CardContent>
-                </Card>
+              {!isSponsoredGallery && (
+                <aside className="space-y-6">
+                  <Card className="card-gradient shadow-card">
+                    <CardHeader>
+                      <CardTitle className="text-xl text-primary">Disponibilidad</CardTitle>
+                      <CardDescription>
+                        {isSelectedEventLoaded ? 'Cupos registrados para este evento.' : 'Cargando cupos del evento.'}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {isSelectedEventLoaded && !isLoading ? (
+                        <CapacityIndicator current={stats.total} max={stats.max} />
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Cargando disponibilidad...</p>
+                      )}
+                    </CardContent>
+                  </Card>
 
-                <Card className="bg-primary text-primary-foreground shadow-card border-0">
-                  <CardHeader>
-                    <CardTitle className="text-xl">Pago</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3 text-sm">
-                    <p>{getRegistrationPriceLabel(selectedEvent)}</p>
-                    <PaymentDetails paymentInfo={selectedEvent.paymentInfo} variant="inverse" />
-                  </CardContent>
-                </Card>
-              </aside>
+                  <Card className="bg-primary text-primary-foreground shadow-card border-0">
+                    <CardHeader>
+                      <CardTitle className="text-xl">Pago</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3 text-sm">
+                      <p>{getRegistrationPriceLabel(selectedEvent)}</p>
+                      <PaymentDetails paymentInfo={selectedEvent.paymentInfo} variant="inverse" />
+                    </CardContent>
+                  </Card>
+                </aside>
+              )}
             </div>
           </section>
 
@@ -326,13 +372,17 @@ const Eventos = () => {
                       <Camera className="h-8 w-8" aria-hidden="true" />
                     </div>
                     <div>
-                      <Badge variant="secondary" className="mb-3">Galería de la competencia</Badge>
+                      <Badge variant="secondary" className="mb-3">
+                        {isSponsoredGallery ? 'Evento patrocinado' : 'Galería de la competencia'}
+                      </Badge>
                       <h2 id="event-photos-title" className="text-2xl font-bold text-foreground md:text-3xl">
                         Fotografías del evento
                       </h2>
                       <p className="mt-2 max-w-2xl text-muted-foreground">
                         {galleryButtons.length > 0
-                          ? `Revive los mejores momentos de ${selectedEvent.name} en su galería oficial.`
+                          ? isSponsoredGallery
+                            ? `Compartimos las fotografías de ${selectedEvent.name}, evento en el que Swim+ participó como patrocinador.`
+                            : `Revive los mejores momentos de ${selectedEvent.name} en su galería oficial.`
                           : `Las fotografías de ${selectedEvent.name} se publicarán aquí cuando estén disponibles.`}
                       </p>
                     </div>
@@ -414,7 +464,7 @@ const Eventos = () => {
             <Badge variant="secondary" className="mx-auto w-fit">Calendario</Badge>
             <h1 className="text-3xl md:text-4xl font-bold text-foreground">Eventos</h1>
             <p className="text-base text-muted-foreground max-w-2xl mx-auto">
-              Revisa los próximos encuentros, entra al evento que te interesa y completa tu inscripción cuando esté disponible.
+              Conoce nuestras competencias y los eventos de la comunidad que apoyamos como patrocinadores.
             </p>
           </div>
         </section>
@@ -424,6 +474,9 @@ const Eventos = () => {
             <EventSection title="Próximos eventos" events={upcomingEvents} setActiveEventId={setActiveEventId} />
             {pastEvents.length > 0 && (
               <EventSection title="Eventos anteriores" events={pastEvents} setActiveEventId={setActiveEventId} />
+            )}
+            {sponsoredEvents.length > 0 && (
+              <EventSection title="Eventos que apoyamos" events={sponsoredEvents} setActiveEventId={setActiveEventId} />
             )}
           </div>
         </section>
@@ -495,6 +548,8 @@ const EventQuickCard = ({
   setActiveEventId: (eventId: string) => void;
 }) => {
   const state = getEventRegistrationState(event);
+  const isSponsoredGallery = isSponsoredGalleryEvent(event);
+  const galleryButtons = getEventGalleryButtons(event);
   const visibleDistances = event.distances.slice(0, 3);
   const extraDistanceCount = Math.max(event.distances.length - visibleDistances.length, 0);
   const handleSelectEvent = () => setActiveEventId(event.id);
@@ -511,7 +566,7 @@ const EventQuickCard = ({
         />
         <div className="absolute inset-0 bg-gradient-to-r from-primary/75 via-primary/30 to-transparent" />
         <Badge variant={eventStatusVariant(event)} className="absolute left-3 top-3 shadow-sm">
-          {state.label}
+          {isSponsoredGallery ? 'Evento patrocinado' : state.label}
         </Badge>
       </div>
 
@@ -536,36 +591,65 @@ const EventQuickCard = ({
           </p>
         </div>
 
-        <div className="flex min-h-7 flex-wrap gap-2">
-          {visibleDistances.map((distance) => (
-            <Badge key={distance.value} variant="outline" className="border-primary/25 text-primary">
-              {distance.label}
-            </Badge>
-          ))}
-          {extraDistanceCount > 0 && (
-            <Badge variant="secondary">+{extraDistanceCount}</Badge>
-          )}
-        </div>
+        {isSponsoredGallery ? (
+          <div className="flex min-h-7 flex-wrap gap-2">
+            <Badge variant="outline" className="border-primary/25 text-primary">Patrocinado por Swim+</Badge>
+            <Badge variant="secondary">Galería de fotos</Badge>
+          </div>
+        ) : (
+          <div className="flex min-h-7 flex-wrap gap-2">
+            {visibleDistances.map((distance) => (
+              <Badge key={distance.value} variant="outline" className="border-primary/25 text-primary">
+                {distance.label}
+              </Badge>
+            ))}
+            {extraDistanceCount > 0 && (
+              <Badge variant="secondary">+{extraDistanceCount}</Badge>
+            )}
+          </div>
+        )}
 
-        <p className="min-h-10 text-sm text-muted-foreground">{state.description}</p>
+        <p className="min-h-10 text-sm text-muted-foreground">
+          {isSponsoredGallery
+            ? 'Evento organizado por terceros y apoyado por Swim+. Consulta y descarga sus fotografías.'
+            : state.description}
+        </p>
 
-        <div className="grid gap-2 sm:grid-cols-2">
-          <Button asChild size="sm" onClick={handleSelectEvent}>
-            <Link to={`/eventos/${event.id}`}>Ver evento</Link>
-          </Button>
-          {state.isOpen ? (
-            <Button asChild size="sm" variant="outline" onClick={handleSelectEvent}>
-              <Link to={`/eventos/${event.id}/inscripcion`}>Inscribirme</Link>
+        {isSponsoredGallery ? (
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button asChild size="sm" onClick={handleSelectEvent}>
+              <Link to={`/eventos/${event.id}`}>Ver publicación</Link>
             </Button>
-          ) : (
-            <Button size="sm" variant="outline" disabled>
-              No disponible
+            {galleryButtons.length > 0 ? (
+              <Button asChild size="sm" variant="outline">
+                <a href={galleryButtons[0].url} target="_blank" rel="noopener noreferrer">
+                  <Camera className="mr-2 h-4 w-4" />
+                  Fotografías
+                </a>
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" disabled>Fotos próximamente</Button>
+            )}
+          </div>
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button asChild size="sm" onClick={handleSelectEvent}>
+              <Link to={`/eventos/${event.id}`}>Ver evento</Link>
             </Button>
-          )}
-          <Button asChild size="sm" variant="ghost" className="sm:col-span-2" onClick={handleSelectEvent}>
-            <Link to={`/eventos/${event.id}/resultados`}>Resultados</Link>
-          </Button>
-        </div>
+            {state.isOpen ? (
+              <Button asChild size="sm" variant="outline" onClick={handleSelectEvent}>
+                <Link to={`/eventos/${event.id}/inscripcion`}>Inscribirme</Link>
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" disabled>
+                No disponible
+              </Button>
+            )}
+            <Button asChild size="sm" variant="ghost" className="sm:col-span-2" onClick={handleSelectEvent}>
+              <Link to={`/eventos/${event.id}/resultados`}>Resultados</Link>
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

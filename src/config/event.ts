@@ -27,6 +27,7 @@ export type EventConfig = {
   sponsorImageUrls?: string[];
   photoGalleryUrl?: string;
   photoGalleryLinks?: EventPhotoGalleryLink[];
+  presentationMode?: 'competition' | 'sponsored_gallery';
   capacityLimit: number | null;
   distances: EventDistance[];
   courseType?: 'open_water' | 'pool';

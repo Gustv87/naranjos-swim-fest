@@ -76,7 +76,7 @@ service cloud.firestore {
       function allowedEventKeys(data) {
         return data.keys().hasOnly([
           'id', 'name', 'date', 'dateTime', 'registrationOpenDateTime', 'registrationCloseDateTime',
-          'location', 'locationShort', 'price', 'paymentInfo', 'posterImageUrl', 'sponsorImageUrls', 'photoGalleryUrl', 'photoGalleryLinks', 'capacityLimit', 'distances',
+          'location', 'locationShort', 'price', 'paymentInfo', 'posterImageUrl', 'sponsorImageUrls', 'photoGalleryUrl', 'photoGalleryLinks', 'presentationMode', 'capacityLimit', 'distances',
           'courseType', 'status', 'acceptsRegistrations', 'registrationsManuallyClosed',
           'shirtSelectionDisabled', 'allowMultipleDistances', 'legacyWithoutEventId', 'publishedResultEventKeys', 'updatedAt'
         ]);
@@ -158,6 +158,7 @@ service cloud.firestore {
         && (request.resource.data.posterImageUrl == null || request.resource.data.posterImageUrl is string)
         && optionalString(request.resource.data, 'photoGalleryUrl')
         && optionalList(request.resource.data, 'photoGalleryLinks')
+        && (request.resource.data.presentationMode == null || request.resource.data.presentationMode in ['competition', 'sponsored_gallery'])
         && optionalList(request.resource.data, 'sponsorImageUrls')
         && request.resource.data.distances is list
         && (request.resource.data.courseType == null || request.resource.data.courseType in ['open_water', 'pool'])

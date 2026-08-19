@@ -209,6 +209,7 @@ const {
     posterImageUrl: '',
     photoGalleryUrl: '',
     photoGalleryLinks: [] as Array<{ label: string; url: string }>,
+    presentationMode: 'competition' as 'competition' | 'sponsored_gallery',
     sponsorImageUrls: [] as string[],
     distancesText: '',
     categoriesText: '',
@@ -574,6 +575,7 @@ const {
       posterImageUrl: eventToEdit?.posterImageUrl ?? '',
       photoGalleryUrl: eventToEdit?.photoGalleryUrl ?? '',
       photoGalleryLinks: (eventToEdit?.photoGalleryLinks ?? []).map((gallery) => ({ ...gallery })),
+      presentationMode: eventToEdit?.presentationMode === 'sponsored_gallery' ? 'sponsored_gallery' : 'competition',
       sponsorImageUrls: eventToEdit?.sponsorImageUrls ?? [],
       distancesText: eventDefaults.distances.map((distance) => distance.value).join(', '),
       categoriesText: eventToEdit ? formatEventCategories(eventToEdit) : formatEventCategories(activeEvent),
@@ -776,8 +778,11 @@ const {
     setIsSavingEvent(true);
 
     try {
-      if (!eventForm.name.trim() || !eventForm.date || !eventForm.registrationCloseDate) {
-        throw new Error('Completa nombre, fecha del evento y cierre de inscripción.');
+      const isSponsoredGallery = eventForm.presentationMode === 'sponsored_gallery';
+      if (!eventForm.name.trim() || !eventForm.date || (!isSponsoredGallery && !eventForm.registrationCloseDate)) {
+        throw new Error(isSponsoredGallery
+          ? 'Completa el nombre y la fecha del evento patrocinado.'
+          : 'Completa nombre, fecha del evento y cierre de inscripción.');
       }
 
       const photoGalleryUrl = eventForm.photoGalleryUrl.trim();
@@ -818,6 +823,10 @@ const {
         }
       });
 
+      if (isSponsoredGallery && !photoGalleryUrl && photoGalleryLinks.length === 0) {
+        throw new Error('Agrega por lo menos un enlace público de fotografías para esta publicación.');
+      }
+
       const id = editingEventId ?? `${slugify(eventForm.name)}-${eventForm.date.slice(0, 4)}`;
       if (!id) {
         throw new Error('No se pudo generar el identificador del evento.');
@@ -834,7 +843,7 @@ const {
         date: eventForm.date,
         dateTime: `${eventForm.date}T${eventForm.time || '06:00'}:00-06:00`,
         registrationOpenDateTime: editingEventId ? activeEvent.registrationOpenDateTime : new Date().toISOString(),
-        registrationCloseDateTime: `${eventForm.registrationCloseDate}T23:59:59-06:00`,
+        registrationCloseDateTime: `${isSponsoredGallery ? eventForm.date : eventForm.registrationCloseDate}T23:59:59-06:00`,
         location: eventForm.location.trim(),
         locationShort: eventForm.location.trim(),
         price: eventForm.price.trim(),
@@ -842,13 +851,14 @@ const {
         posterImageUrl,
         photoGalleryUrl,
         photoGalleryLinks,
+        presentationMode: eventForm.presentationMode,
         sponsorImageUrls,
         capacityLimit: editingEventId ? activeEvent.capacityLimit : null,
         distances: parseDistances(eventForm.distancesText),
         courseType: eventForm.courseType,
         status: editingEventId ? activeEvent.status : 'active',
-        acceptsRegistrations: editingEventId ? activeEvent.acceptsRegistrations : true,
-        registrationsManuallyClosed: eventForm.registrationsManuallyClosed,
+        acceptsRegistrations: isSponsoredGallery ? false : editingEventId ? activeEvent.acceptsRegistrations : true,
+        registrationsManuallyClosed: isSponsoredGallery ? true : eventForm.registrationsManuallyClosed,
         shirtSelectionDisabled: eventForm.shirtSelectionDisabled,
         allowMultipleDistances: eventForm.allowMultipleDistances,
         legacyWithoutEventId: editingEventId ? Boolean(activeEvent.legacyWithoutEventId) : false,
@@ -5171,17 +5181,33 @@ const {
           <DialogContent className="w-[95vw] max-w-3xl max-h-[90vh] p-0 overflow-hidden">
             <form onSubmit={handleSaveEvent} className="flex max-h-[90vh] flex-col">
               <DialogHeader className="px-6 pt-6 pb-4">
-                <DialogTitle>{editingEventId ? 'Editar competencia' : 'Nueva competencia'}</DialogTitle>
+                <DialogTitle>{editingEventId ? 'Editar evento' : 'Nuevo evento o publicación'}</DialogTitle>
                 <DialogDescription>
                   {editingEventId
-                    ? 'Corrige los datos publicados de este evento. Los cambios se reflejan en la página de eventos, inscripción y resultados.'
-                    : 'Crea un evento activo. La fecha alimenta el contador, el precio alimenta inscripción y reglamento, y las distancias se usan en formulario/resultados.'}
+                    ? 'Corrige los datos publicados. Los cambios se reflejan en la página pública del evento.'
+                    : 'Crea una competencia propia o una publicación de un evento que Swim+ apoyó como patrocinador.'}
                 </DialogDescription>
               </DialogHeader>
 
               <div className="grid gap-4 md:grid-cols-2 overflow-y-auto px-6 py-2">
+                <label className="flex items-start gap-3 rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm md:col-span-2">
+                  <Checkbox
+                    checked={eventForm.presentationMode === 'sponsored_gallery'}
+                    onCheckedChange={(value) => setEventForm((prev) => ({
+                      ...prev,
+                      presentationMode: value ? 'sponsored_gallery' : 'competition',
+                      registrationsManuallyClosed: value ? true : prev.registrationsManuallyClosed,
+                    }))}
+                  />
+                  <span>
+                    <span className="font-medium text-foreground">Evento patrocinado: publicación solo de fotografías</span>
+                    <span className="block text-muted-foreground">
+                      No mostrará inscripción, pago, reglamento, distancias ni resultados. Se presentará como un evento externo apoyado por Swim+.
+                    </span>
+                  </span>
+                </label>
                 <div className="space-y-1.5 md:col-span-2">
-                  <Label>Nombre de la competencia</Label>
+                  <Label>Nombre del evento</Label>
                   <Input value={eventForm.name} onChange={(e) => setEventForm((prev) => ({ ...prev, name: e.target.value }))} required />
                 </div>
                 <div className="space-y-1.5">
@@ -5192,60 +5218,64 @@ const {
                   <Label>Hora de salida</Label>
                   <Input type="time" value={eventForm.time} onChange={(e) => setEventForm((prev) => ({ ...prev, time: e.target.value }))} required />
                 </div>
-                <div className="space-y-1.5">
-                  <Label>Cierre de inscripción</Label>
-                  <Input type="date" value={eventForm.registrationCloseDate} onChange={(e) => setEventForm((prev) => ({ ...prev, registrationCloseDate: e.target.value }))} required />
-                </div>
-                <label className="flex items-start gap-3 rounded-lg border bg-muted/30 p-4 text-sm md:col-span-2">
-                  <Checkbox
-                    checked={eventForm.registrationsManuallyClosed}
-                    onCheckedChange={(value) => setEventForm((prev) => ({ ...prev, registrationsManuallyClosed: Boolean(value) }))}
-                  />
-                  <span>
-                    <span className="font-medium text-foreground">Bloquear inscripciones manualmente</span>
-                    <span className="block text-muted-foreground">
-                      Cierra el formulario y la creación de nuevas inscripciones sin cambiar la fecha automática de cierre.
-                    </span>
-                  </span>
-                </label>
-                <label className="flex items-start gap-3 rounded-lg border bg-muted/30 p-4 text-sm md:col-span-2">
-                  <Checkbox
-                    checked={eventForm.shirtSelectionDisabled}
-                    onCheckedChange={(value) => setEventForm((prev) => ({ ...prev, shirtSelectionDisabled: Boolean(value) }))}
-                  />
-                  <span>
-                    <span className="font-medium text-foreground">Deshabilitar selección de camisa</span>
-                    <span className="block text-muted-foreground">
-                      Mantiene abiertas las inscripciones, pero deja de pedir talla a los nuevos participantes.
-                    </span>
-                  </span>
-                </label>
-                <div className="space-y-1.5">
-                  <Label>Precio (L)</Label>
-                  <Input value={eventForm.price} onChange={(e) => setEventForm((prev) => ({ ...prev, price: e.target.value }))} required />
-                </div>
-                <div className="space-y-1.5 md:col-span-2">
-                  <Label>Tipo de competencia</Label>
-                  <Select
-                    value={eventForm.courseType}
-                    onValueChange={(value) => setEventForm((prev) => ({
-                      ...prev,
-                      courseType: value as 'open_water' | 'pool',
-                      categoriesText: value === 'pool' ? OFFICIAL_MASTER_CATEGORIES_TEXT : prev.categoriesText,
-                    }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona el tipo de competencia" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="open_water">Aguas abiertas</SelectItem>
-                      <SelectItem value="pool">Piscina</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Las opciones de carriles y heats solo aparecen para competencias de piscina.
-                  </p>
-                </div>
+                {eventForm.presentationMode !== 'sponsored_gallery' && (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label>Cierre de inscripción</Label>
+                      <Input type="date" value={eventForm.registrationCloseDate} onChange={(e) => setEventForm((prev) => ({ ...prev, registrationCloseDate: e.target.value }))} required />
+                    </div>
+                    <label className="flex items-start gap-3 rounded-lg border bg-muted/30 p-4 text-sm md:col-span-2">
+                      <Checkbox
+                        checked={eventForm.registrationsManuallyClosed}
+                        onCheckedChange={(value) => setEventForm((prev) => ({ ...prev, registrationsManuallyClosed: Boolean(value) }))}
+                      />
+                      <span>
+                        <span className="font-medium text-foreground">Bloquear inscripciones manualmente</span>
+                        <span className="block text-muted-foreground">
+                          Cierra el formulario y la creación de nuevas inscripciones sin cambiar la fecha automática de cierre.
+                        </span>
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-3 rounded-lg border bg-muted/30 p-4 text-sm md:col-span-2">
+                      <Checkbox
+                        checked={eventForm.shirtSelectionDisabled}
+                        onCheckedChange={(value) => setEventForm((prev) => ({ ...prev, shirtSelectionDisabled: Boolean(value) }))}
+                      />
+                      <span>
+                        <span className="font-medium text-foreground">Deshabilitar selección de camisa</span>
+                        <span className="block text-muted-foreground">
+                          Mantiene abiertas las inscripciones, pero deja de pedir talla a los nuevos participantes.
+                        </span>
+                      </span>
+                    </label>
+                    <div className="space-y-1.5">
+                      <Label>Precio (L)</Label>
+                      <Input value={eventForm.price} onChange={(e) => setEventForm((prev) => ({ ...prev, price: e.target.value }))} required />
+                    </div>
+                    <div className="space-y-1.5 md:col-span-2">
+                      <Label>Tipo de competencia</Label>
+                      <Select
+                        value={eventForm.courseType}
+                        onValueChange={(value) => setEventForm((prev) => ({
+                          ...prev,
+                          courseType: value as 'open_water' | 'pool',
+                          categoriesText: value === 'pool' ? OFFICIAL_MASTER_CATEGORIES_TEXT : prev.categoriesText,
+                        }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona el tipo de competencia" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="open_water">Aguas abiertas</SelectItem>
+                          <SelectItem value="pool">Piscina</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Las opciones de carriles y heats solo aparecen para competencias de piscina.
+                      </p>
+                    </div>
+                  </>
+                )}
                 <div className="space-y-1.5 md:col-span-2">
                   <Label>Lugar</Label>
                   <Input value={eventForm.location} onChange={(e) => setEventForm((prev) => ({ ...prev, location: e.target.value }))} required />
@@ -5459,50 +5489,54 @@ const {
                     </div>
                   )}
                 </div>
-                <div className="space-y-1.5 md:col-span-2">
-                  <Label>Distancias separadas por coma</Label>
-                  <Input value={eventForm.distancesText} onChange={(e) => setEventForm((prev) => ({ ...prev, distancesText: e.target.value }))} placeholder="800m, 2km, 5km" required />
-                  <p className="text-xs text-muted-foreground">
-                    Ejemplo: 800m, 2km, 5km
-                  </p>
-                </div>
-                <label className="md:col-span-2 flex items-start gap-3 rounded-lg border bg-muted/30 p-4 text-sm">
-                  <Checkbox
-                    checked={eventForm.allowMultipleDistances}
-                    onCheckedChange={(value) => setEventForm((prev) => ({ ...prev, allowMultipleDistances: Boolean(value) }))}
-                  />
-                  <span>
-                    <span className="font-medium text-foreground">Permitir escoger varias pruebas</span>
-                    <span className="block text-muted-foreground">
-                      Úsalo para eventos de piscina donde el nadador puede inscribirse en una o varias pruebas.
-                    </span>
-                  </span>
-                </label>
-                <div className="space-y-1.5 md:col-span-2">
-                  <Label>Categorías por edad</Label>
-                  <Textarea
-                    value={eventForm.categoriesText}
-                    onChange={(e) => setEventForm((prev) => ({ ...prev, categoriesText: e.target.value }))}
-                    placeholder={OFFICIAL_MASTER_CATEGORIES_TEXT}
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Formato oficial master: {OFFICIAL_MASTER_CATEGORIES_TEXT}.
-                  </p>
-                </div>
-                <div className="space-y-1.5 md:col-span-2">
-                  <Label>Información de pago</Label>
-                  <Textarea
-                    value={eventForm.paymentInfo}
-                    onChange={(e) => setEventForm((prev) => ({ ...prev, paymentInfo: e.target.value }))}
-                    rows={6}
-                    placeholder={'Número de cuenta: 00000000\nBanco: Nombre del banco\nTipo de cuenta: Ahorros\nTitular: Nombre completo\nDNI: 0000-0000-00000'}
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Para agregar varias cuentas, repite el bloque comenzando con “Número de cuenta:”. La página las mostrará por separado.
-                  </p>
-                </div>
+                {eventForm.presentationMode !== 'sponsored_gallery' && (
+                  <>
+                    <div className="space-y-1.5 md:col-span-2">
+                      <Label>Distancias separadas por coma</Label>
+                      <Input value={eventForm.distancesText} onChange={(e) => setEventForm((prev) => ({ ...prev, distancesText: e.target.value }))} placeholder="800m, 2km, 5km" required />
+                      <p className="text-xs text-muted-foreground">
+                        Ejemplo: 800m, 2km, 5km
+                      </p>
+                    </div>
+                    <label className="md:col-span-2 flex items-start gap-3 rounded-lg border bg-muted/30 p-4 text-sm">
+                      <Checkbox
+                        checked={eventForm.allowMultipleDistances}
+                        onCheckedChange={(value) => setEventForm((prev) => ({ ...prev, allowMultipleDistances: Boolean(value) }))}
+                      />
+                      <span>
+                        <span className="font-medium text-foreground">Permitir escoger varias pruebas</span>
+                        <span className="block text-muted-foreground">
+                          Úsalo para eventos de piscina donde el nadador puede inscribirse en una o varias pruebas.
+                        </span>
+                      </span>
+                    </label>
+                    <div className="space-y-1.5 md:col-span-2">
+                      <Label>Categorías por edad</Label>
+                      <Textarea
+                        value={eventForm.categoriesText}
+                        onChange={(e) => setEventForm((prev) => ({ ...prev, categoriesText: e.target.value }))}
+                        placeholder={OFFICIAL_MASTER_CATEGORIES_TEXT}
+                        required
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Formato oficial master: {OFFICIAL_MASTER_CATEGORIES_TEXT}.
+                      </p>
+                    </div>
+                    <div className="space-y-1.5 md:col-span-2">
+                      <Label>Información de pago</Label>
+                      <Textarea
+                        value={eventForm.paymentInfo}
+                        onChange={(e) => setEventForm((prev) => ({ ...prev, paymentInfo: e.target.value }))}
+                        rows={6}
+                        placeholder={'Número de cuenta: 00000000\nBanco: Nombre del banco\nTipo de cuenta: Ahorros\nTitular: Nombre completo\nDNI: 0000-0000-00000'}
+                        required
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Para agregar varias cuentas, repite el bloque comenzando con “Número de cuenta:”. La página las mostrará por separado.
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
 
               <DialogFooter className="border-t bg-background px-6 py-4">
@@ -5512,7 +5546,7 @@ const {
                 <Button type="submit" disabled={isSavingEvent || isConvertingSponsorPdfs}>
                   {isSavingEvent
                     ? editingEventId ? 'Guardando...' : 'Creando...'
-                    : editingEventId ? 'Guardar cambios' : 'Crear competencia'}
+                    : editingEventId ? 'Guardar cambios' : eventForm.presentationMode === 'sponsored_gallery' ? 'Crear publicación' : 'Crear competencia'}
                 </Button>
               </DialogFooter>
             </form>
