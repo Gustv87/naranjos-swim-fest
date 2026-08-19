@@ -476,7 +476,7 @@ const Eventos = () => {
               <EventSection title="Eventos anteriores" events={pastEvents} setActiveEventId={setActiveEventId} />
             )}
             {sponsoredEvents.length > 0 && (
-              <EventSection title="Eventos que apoyamos" events={sponsoredEvents} setActiveEventId={setActiveEventId} />
+              <EventSection title="Eventos patrocinados por Swim+" events={sponsoredEvents} setActiveEventId={setActiveEventId} />
             )}
           </div>
         </section>
@@ -505,8 +505,8 @@ const EventSection = ({
   setActiveEventId: (eventId: string) => void;
 }) => (
   <div className="space-y-5">
-    <div className="flex flex-wrap items-end justify-between gap-3">
-      <div>
+    <div className="flex flex-col items-center gap-3 text-center">
+      <div className="space-y-1">
         <h2 className="text-2xl md:text-3xl font-bold text-foreground">{title}</h2>
         <p className="text-sm text-muted-foreground">Vista rápida para elegir el evento sin abrir cada detalle.</p>
       </div>
